@@ -1,11 +1,28 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { NotifyMode } from "../notify.ts";
 import { Zalo, type API, type Credentials, type LoginQRCallback } from "zca-js";
 
 export const stateDir = process.env.ZALO_TUI_HOME ?? join(homedir(), ".config", "zalo-tui");
 const credentialsPath = join(stateDir, "credentials.json");
 export const qrPath = join(stateDir, "qr.png");
+const settingsPath = join(stateDir, "settings.json");
+
+export type Settings = { notify?: NotifyMode };
+
+export function loadSettings(): Settings {
+  try {
+    return JSON.parse(readFileSync(settingsPath, "utf8")) as Settings;
+  } catch {
+    return {};
+  }
+}
+
+export function saveSettings(settings: Settings): void {
+  ensureStateDir();
+  writeFileSync(settingsPath, JSON.stringify(settings), { mode: 0o600 });
+}
 
 export function ensureStateDir(): void {
   mkdirSync(stateDir, { recursive: true, mode: 0o700 });

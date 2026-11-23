@@ -1,5 +1,6 @@
 import { CloseReason, ThreadType, type API, type Message, type Undo } from "zca-js";
 import { messageText } from "../format.ts";
+import { mutedUntil, notificationContent, shouldNotify, showNotification } from "../notify.ts";
 import {
   addMessages,
   markRecalled,
@@ -27,6 +28,9 @@ function closeReason(code: number, reason: string): string {
 export class ZaloClient {
   private resolving = new Set<string>();
   private historyLoaded = new Set<string>();
+  private muted = new Map<string, number>();
+  private lastNotified = new Map<string, number>();
+  private selfId = "";
 
   constructor(
     private api: API,
@@ -35,6 +39,7 @@ export class ZaloClient {
 
   private toChatMessage(m: Message): ChatMessage {
     const kind = m.type === ThreadType.Group ? "group" : "user";
+    const mentions = m.type === ThreadType.Group ? (m.data.mentions ?? []) : [];
     return {
       id: String(m.data.msgId),
       threadKey: threadKey(kind, m.threadId),
@@ -42,11 +47,14 @@ export class ZaloClient {
       isSelf: m.isSelf,
       ts: Number(m.data.ts) || Date.now(),
       text: messageText(m.data),
+      mentionsMe: mentions.some((x) => x.uid === this.selfId || x.uid === "-1" || x.type === 1),
     };
   }
 
   async init(): Promise<void> {
     const selfId = this.api.getOwnId();
+    this.selfId = selfId;
+    void this.loadMuted();
     const [account, friends, groups] = await Promise.all([
       this.api.fetchAccountInfo().catch(() => null),
       this.api.getAllFriends().catch(() => []),
@@ -78,6 +86,26 @@ export class ZaloClient {
     }
   }
 
+  private async loadMuted(): Promise<void> {
+    try {
+      const r = await this.api.getMute();
+      for (const e of r.chatEntries ?? []) this.muted.set(threadKey("user", String(e.id)), mutedUntil(e));
+      for (const e of r.groupChatEntries ?? []) this.muted.set(threadKey("group", String(e.id)), mutedUntil(e));
+    } catch {}
+  }
+
+  private notify(messages: ChatMessage[]): void {
+    const state = this.store.getState();
+    const now = Date.now();
+    for (const m of messages) {
+      if (!shouldNotify(m, state, this.muted, now)) continue;
+      if (now - (this.lastNotified.get(m.threadKey) ?? 0) < 5000) continue;
+      this.lastNotified.set(m.threadKey, now);
+      const { title, body } = notificationContent(m, state);
+      showNotification(title, body);
+    }
+  }
+
   private attachListener(): void {
     const { listener } = this.api;
     listener.on("connected", () => {
@@ -102,7 +130,10 @@ export class ZaloClient {
 
   private ingest(messages: Message[], live: boolean): void {
     const converted = messages.map((m) => this.toChatMessage(m));
+    const before = this.store.getState().messages;
+    const fresh = converted.filter((m) => !before[m.threadKey]?.some((x) => x.id === m.id));
     this.store.update((s) => addMessages(s, converted, live));
+    if (live) this.notify(fresh);
     for (const key of new Set(converted.map((m) => m.threadKey))) {
       if (this.store.getState().threads[key]?.placeholder) void this.resolveName(key);
     }

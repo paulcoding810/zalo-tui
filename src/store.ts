@@ -1,3 +1,5 @@
+import type { NotifyMode } from "./notify.ts";
+
 export type ThreadKind = "user" | "group";
 
 export type Thread = {
@@ -17,6 +19,7 @@ export type ChatMessage = {
   ts: number;
   text: string;
   recalled?: boolean;
+  mentionsMe?: boolean;
 };
 
 export type Connection = {
@@ -32,6 +35,7 @@ export type State = {
   unread: Record<string, number>;
   activeKey: string | null;
   connection: Connection;
+  notify: NotifyMode;
 };
 
 export function threadKey(kind: ThreadKind, id: string): string {
@@ -52,6 +56,7 @@ export function initialState(): State {
     unread: {},
     activeKey: null,
     connection: { state: "idle" },
+    notify: "full",
   };
 }
 

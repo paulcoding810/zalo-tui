@@ -2,15 +2,18 @@ import { Box, Text, useInput, useWindowSize } from "ink";
 import { useEffect, useMemo, useState } from "react";
 import { LoginQRCallbackEventType } from "zca-js";
 import { renderQR, type RenderedQR } from "../qr.ts";
+import { nextNotifyMode } from "../notify.ts";
 import { openThread, sortedThreads, type Store } from "../store.ts";
 import { ZaloClient } from "../zalo/client.ts";
-import { loadCredentials, loginWithQR, qrPath, restore, saveCredentials } from "../zalo/session.ts";
+import { loadCredentials, loginWithQR, qrPath, restore, saveCredentials, saveSettings } from "../zalo/session.ts";
 import { ChatList } from "./ChatList.tsx";
 import { Composer } from "./Composer.tsx";
 import { LoginScreen } from "./LoginScreen.tsx";
 import { MessagePane } from "./MessagePane.tsx";
 import { StatusBar } from "./StatusBar.tsx";
 import { StoreContext, useStoreState } from "./useStore.ts";
+
+type Focus = "list" | "input";
 
 type Phase = "restoring" | "login" | "loading" | "chat" | "error";
 
@@ -116,7 +119,8 @@ function ErrorScreen({ message }: { message: string }) {
 export function ChatScreen({ store, client }: { store: Store; client: ZaloClient }) {
   const state = useStoreState();
   const { columns, rows } = useWindowSize();
-  const [focus, setFocus] = useState<"list" | "input">("list");
+  const [focus, setFocus] = useState<Focus>("list");
+  const [toast, setToast] = useState<string>();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [filtering, setFiltering] = useState(false);
@@ -132,6 +136,11 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const paneHeight = Math.max(3, rows - 4);
   const sidebarWidth = Math.max(18, Math.min(32, Math.floor(columns / 3)));
   const pageSize = Math.max(1, paneHeight - 2);
+
+  const flash = (text: string) => {
+    setToast(text);
+    setTimeout(() => setToast((t) => (t === text ? undefined : t)), 2500);
+  };
 
   const open = (key: string) => {
     store.update((s) => openThread(s, key));
@@ -175,6 +184,12 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     }
     if (input === "/") return setFiltering(true);
     if (key.escape) return setFilter("");
+    if (input === "n") {
+      const notify = nextNotifyMode(state.notify);
+      store.update((s) => ({ ...s, notify }));
+      saveSettings({ notify });
+      return flash(`notifications: ${notify === "sender" ? "sender only" : notify}`);
+    }
     if (input === "r" && state.connection.state === "closed") client.connect();
   });
 
@@ -214,7 +229,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
         />
       </Box>
       <Composer active={focus === "input"} enabled={!!active} error={sendError} onSubmit={submit} />
-      <StatusBar connection={state.connection} selfName={state.selfName} focus={focus} />
+      <StatusBar connection={state.connection} selfName={state.selfName} focus={focus} notify={state.notify} toast={toast} />
     </Box>
   );
 }
