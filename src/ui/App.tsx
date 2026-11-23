@@ -12,6 +12,7 @@ import { ChatList } from "./ChatList.tsx";
 import { Composer } from "./Composer.tsx";
 import { LoginScreen } from "./LoginScreen.tsx";
 import { MessagePane } from "./MessagePane.tsx";
+import { navStep } from "./nav.ts";
 import { StatusBar } from "./StatusBar.tsx";
 import { StoreContext, useStoreState } from "./useStore.ts";
 
@@ -189,11 +190,12 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       if (key.escape) setFocus("list");
       return;
     }
+    const half = Math.max(1, Math.floor(paneHeight / 2));
     if (focus === "messages") {
       const i = msgIndex === -1 ? messages.length - 1 : msgIndex;
-      if (key.upArrow) return setSelectedMsgId(messages[Math.max(0, i - 1)]?.id ?? null);
-      if (key.downArrow) return setSelectedMsgId(messages[Math.min(messages.length - 1, i + 1)]?.id ?? null);
-      if (key.escape || key.return) return setFocus("input");
+      const next = navStep(input, key, i, messages.length, half);
+      if (next !== null) return setSelectedMsgId(messages[next]?.id ?? null);
+      if (key.escape || key.return || input === "i") return setFocus("input");
       if (input === "e" && selectedMsg) return setPicking(true);
       if (input === "o") {
         if (selectedMsg?.url && openUrl(selectedMsg.url)) flash("opened in browser");
@@ -214,8 +216,13 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       }
       if (!key.upArrow && !key.downArrow) return;
     }
-    if (key.upArrow) return setSelectedKey(threads[Math.max(0, selected - 1)]?.key ?? null);
-    if (key.downArrow) return setSelectedKey(threads[Math.min(threads.length - 1, selected + 1)]?.key ?? null);
+    const next = navStep(input, key, selected, threads.length, half);
+    if (next !== null) return setSelectedKey(threads[next]?.key ?? null);
+    if (input === "i") {
+      if (state.activeKey) setFocus("input");
+      else flash("open a chat first");
+      return;
+    }
     if (key.return) {
       const t = threads[selected];
       if (t) open(t.key);
