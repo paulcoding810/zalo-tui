@@ -20,6 +20,7 @@ export type ChatMessage = {
   text: string;
   recalled?: boolean;
   mentionsMe?: boolean;
+  url?: string;
 };
 
 export type Connection = {

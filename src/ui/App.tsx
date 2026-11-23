@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { LoginQRCallbackEventType } from "zca-js";
 import { renderQR, type RenderedQR } from "../qr.ts";
 import { nextNotifyMode } from "../notify.ts";
+import { openUrl } from "../open.ts";
 import { openThread, sortedThreads, type Store } from "../store.ts";
 import { ZaloClient } from "../zalo/client.ts";
 import { loadCredentials, loginWithQR, qrPath, restore, saveCredentials, saveSettings } from "../zalo/session.ts";
@@ -13,7 +14,7 @@ import { MessagePane } from "./MessagePane.tsx";
 import { StatusBar } from "./StatusBar.tsx";
 import { StoreContext, useStoreState } from "./useStore.ts";
 
-type Focus = "list" | "input";
+type Focus = "list" | "input" | "messages";
 
 type Phase = "restoring" | "login" | "loading" | "chat" | "error";
 
@@ -120,6 +121,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const state = useStoreState();
   const { columns, rows } = useWindowSize();
   const [focus, setFocus] = useState<Focus>("list");
+  const [selectedMsgId, setSelectedMsgId] = useState<string | null>(null);
   const [toast, setToast] = useState<string>();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
@@ -137,6 +139,9 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const sidebarWidth = Math.max(18, Math.min(32, Math.floor(columns / 3)));
   const pageSize = Math.max(1, paneHeight - 2);
 
+  const msgIndex = messages.findIndex((m) => m.id === selectedMsgId);
+  const selectedMsg = focus === "messages" ? messages[msgIndex === -1 ? messages.length - 1 : msgIndex] : undefined;
+
   const flash = (text: string) => {
     setToast(text);
     setTimeout(() => setToast((t) => (t === text ? undefined : t)), 2500);
@@ -145,6 +150,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const open = (key: string) => {
     store.update((s) => openThread(s, key));
     setScroll(0);
+    setSelectedMsgId(null);
     setSendError(undefined);
     setFocus("input");
     void client.loadHistory(key);
@@ -154,12 +160,23 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     if (key.pageUp) return setScroll((s) => s + pageSize);
     if (key.pageDown) return setScroll((s) => Math.max(0, s - pageSize));
     if (key.tab) {
-      if (focus === "list" && state.activeKey) setFocus("input");
-      else setFocus("list");
+      if (!state.activeKey) return setFocus("list");
+      setFocus(focus === "list" ? "input" : focus === "input" ? "messages" : "list");
       return;
     }
     if (focus === "input") {
       if (key.escape) setFocus("list");
+      return;
+    }
+    if (focus === "messages") {
+      const i = msgIndex === -1 ? messages.length - 1 : msgIndex;
+      if (key.upArrow) return setSelectedMsgId(messages[Math.max(0, i - 1)]?.id ?? null);
+      if (key.downArrow) return setSelectedMsgId(messages[Math.min(messages.length - 1, i + 1)]?.id ?? null);
+      if (key.escape || key.return) return setFocus("input");
+      if (input === "o") {
+        if (selectedMsg?.url && openUrl(selectedMsg.url)) flash("opened in browser");
+        else flash("nothing to open in this message");
+      }
       return;
     }
     if (filtering) {
@@ -224,6 +241,8 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           thread={active}
           messages={messages}
           scroll={scroll}
+          selectedId={selectedMsg?.id ?? null}
+          focused={focus === "messages"}
           width={columns - sidebarWidth}
           height={paneHeight}
         />
