@@ -47,15 +47,17 @@ export function MessagePane({ thread, messages, scroll, width, height }: Props) 
       <Box position="absolute" marginTop={-1} marginLeft={1}>
         <Text bold> {title} {offset > 0 ? `(↑${offset})` : ""}</Text>
       </Box>
-      {!thread ? <Text dimColor>Pick a chat on the left and press Enter.</Text> : null}
-      {thread && lines.length === 0 ? <Text dimColor>No messages loaded yet.</Text> : null}
-      {visible.map((l) => (
-        <Text key={l.key} wrap="truncate-end" dimColor={l.dim}>
-          {l.time ? <Text dimColor>{l.time} </Text> : null}
-          {l.sender ? <Text color={l.isSelf ? "green" : "cyan"}>{l.sender}: </Text> : null}
-          {l.text}
-        </Text>
-      ))}
+      <Box flexDirection="column" flexGrow={1} justifyContent="flex-end">
+        {!thread ? <Text dimColor>Pick a chat on the left and press Enter.</Text> : null}
+        {thread && lines.length === 0 ? <Text dimColor>No messages loaded yet.</Text> : null}
+        {visible.map((l) => (
+          <Text key={l.key} wrap="truncate-end" dimColor={l.dim}>
+            {l.time ? <Text dimColor>{l.time} </Text> : null}
+            {l.sender ? <Text color={l.isSelf ? "green" : "cyan"}>{l.sender}: </Text> : null}
+            {l.text}
+          </Text>
+        ))}
+      </Box>
     </Box>
   );
 }

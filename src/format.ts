@@ -51,7 +51,14 @@ export function wrapText(text: string, width: number): string[] {
       out.push("");
       continue;
     }
-    for (let i = 0; i < chars.length; i += width) out.push(chars.slice(i, i + width).join(""));
+    let start = 0;
+    while (chars.length - start > width) {
+      const space = chars.lastIndexOf(" ", start + width);
+      const end = space > start ? space : start + width;
+      out.push(chars.slice(start, end).join(""));
+      start = space > start ? end + 1 : end;
+    }
+    out.push(chars.slice(start).join(""));
   }
   return out;
 }

@@ -30,5 +30,7 @@ test("formatTime shows only the time for today", () => {
 test("wrapText splits by width and keeps newlines", () => {
   assert.deepEqual(wrapText("abcdef", 4), ["abcd", "ef"]);
   assert.deepEqual(wrapText("ab\n\ncd", 10), ["ab", "", "cd"]);
-  assert.deepEqual(wrapText("Việt Nam", 4), ["Việt", " Nam"]);
+  assert.deepEqual(wrapText("Việt Nam", 4), ["Việt", "Nam"]);
+  assert.deepEqual(wrapText("tin nhắn rất dài", 9), ["tin nhắn", "rất dài"]);
+  assert.deepEqual(wrapText("abcdefghij xy", 4), ["abcd", "efgh", "ij", "xy"]);
 });
