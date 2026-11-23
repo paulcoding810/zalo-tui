@@ -15,6 +15,8 @@ import {
   type Store,
 } from "../store.ts";
 
+const HISTORY_REQUESTS = 4;
+
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
@@ -34,6 +36,8 @@ export class ZaloClient {
   private muted = new Map<string, number>();
   private lastNotified = new Map<string, number>();
   private selfId = "";
+  private historyRequests = new Map<ThreadType, number>();
+  private historyOldest = new Map<ThreadType, number>();
   private savedActivity = "";
   private saveTimer: NodeJS.Timeout | null = null;
   private unsubscribe: (() => void) | null = null;
@@ -117,6 +121,21 @@ export class ZaloClient {
     } catch {}
   }
 
+  private requestHistory(type: ThreadType, lastMsgId?: string): void {
+    this.historyRequests.set(type, (this.historyRequests.get(type) ?? 0) + 1);
+    this.api.listener.requestOldMessages(type, lastMsgId ?? null);
+  }
+
+  private onOldMessages(messages: Message[], type: ThreadType): void {
+    this.ingest(messages, false);
+    if (messages.length === 0 || (this.historyRequests.get(type) ?? 0) >= HISTORY_REQUESTS) return;
+    const oldest = messages.reduce((a, b) => (Number(b.data.ts) < Number(a.data.ts) ? b : a));
+    const ts = Number(oldest.data.ts);
+    if (!(ts < (this.historyOldest.get(type) ?? Infinity))) return;
+    this.historyOldest.set(type, ts);
+    this.requestHistory(type, String(oldest.data.msgId));
+  }
+
   private async loadMuted(): Promise<void> {
     try {
       const r = await this.api.getMute();
@@ -141,8 +160,10 @@ export class ZaloClient {
     const { listener } = this.api;
     listener.on("connected", () => {
       this.store.update((s) => setConnection(s, { state: "connected" }));
-      listener.requestOldMessages(ThreadType.User);
-      listener.requestOldMessages(ThreadType.Group);
+      this.historyRequests.clear();
+      this.historyOldest.clear();
+      this.requestHistory(ThreadType.User);
+      this.requestHistory(ThreadType.Group);
     });
     listener.on("disconnected", (code, reason) => {
       this.store.update((s) => setConnection(s, { state: "connecting", reason: closeReason(code, reason) }));
@@ -152,7 +173,7 @@ export class ZaloClient {
     });
     listener.on("error", () => {});
     listener.on("message", (m) => this.ingest([m], true));
-    listener.on("old_messages", (ms) => this.ingest(ms, false));
+    listener.on("old_messages", (ms, type) => this.onOldMessages(ms, type));
     listener.on("undo", (u: Undo) => {
       const key = threadKey(u.isGroup ? "group" : "user", u.threadId);
       this.store.update((s) => markRecalled(s, key, String(u.data.content.globalMsgId)));
