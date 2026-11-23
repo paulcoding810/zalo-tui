@@ -13,6 +13,7 @@ export type Thread = {
 
 export type ChatMessage = {
   id: string;
+  cliMsgId?: string;
   threadKey: string;
   senderName: string;
   isSelf: boolean;
@@ -86,7 +87,11 @@ export function addMessages(state: State, incoming: ChatMessage[], countUnread: 
     const list = touched.has(msg.threadKey) ? messages[msg.threadKey]! : [...(messages[msg.threadKey] ?? [])];
     touched.add(msg.threadKey);
     messages[msg.threadKey] = list;
-    if (list.some((m) => m.id === msg.id)) continue;
+    const existing = list.findIndex((m) => m.id === msg.id);
+    if (existing !== -1) {
+      if (msg.cliMsgId && !list[existing]!.cliMsgId) list[existing] = { ...list[existing]!, cliMsgId: msg.cliMsgId };
+      continue;
+    }
     list.push(msg);
 
     const { kind, id } = parseKey(msg.threadKey);

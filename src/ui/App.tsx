@@ -2,6 +2,7 @@ import { Box, Text, useInput, useWindowSize } from "ink";
 import { useEffect, useMemo, useState } from "react";
 import { LoginQRCallbackEventType } from "zca-js";
 import { renderQR, type RenderedQR } from "../qr.ts";
+import { reactionIcon } from "../format.ts";
 import { nextNotifyMode } from "../notify.ts";
 import { openUrl } from "../open.ts";
 import { openThread, sortedThreads, type Store } from "../store.ts";
@@ -15,6 +16,8 @@ import { StatusBar } from "./StatusBar.tsx";
 import { StoreContext, useStoreState } from "./useStore.ts";
 
 type Focus = "list" | "input" | "messages";
+
+const PICKER = ["/-heart", "/-strong", ":>", ":o", ":-((", ":-h"];
 
 type Phase = "restoring" | "login" | "loading" | "chat" | "error";
 
@@ -123,6 +126,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const [focus, setFocus] = useState<Focus>("list");
   const [selectedMsgId, setSelectedMsgId] = useState<string | null>(null);
   const [toast, setToast] = useState<string>();
+  const [picking, setPicking] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [filtering, setFiltering] = useState(false);
@@ -156,7 +160,24 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     void client.loadHistory(key);
   };
 
+  const react = (icon: string) => {
+    const target = selectedMsg;
+    setPicking(false);
+    if (!target) return;
+    client
+      .react(target, icon)
+      .then(() => flash(icon ? `reacted ${reactionIcon(icon)}` : "reaction removed"))
+      .catch((e) => flash(`reaction failed: ${errorMessage(e)}`));
+  };
+
   useInput((input, key) => {
+    if (picking) {
+      if (key.escape) return setPicking(false);
+      if (input === "0") return react("");
+      const icon = PICKER[Number(input) - 1];
+      if (/^[1-9]$/.test(input) && icon) react(icon);
+      return;
+    }
     if (key.pageUp) return setScroll((s) => s + pageSize);
     if (key.pageDown) return setScroll((s) => Math.max(0, s - pageSize));
     if (key.tab) {
@@ -173,6 +194,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       if (key.upArrow) return setSelectedMsgId(messages[Math.max(0, i - 1)]?.id ?? null);
       if (key.downArrow) return setSelectedMsgId(messages[Math.min(messages.length - 1, i + 1)]?.id ?? null);
       if (key.escape || key.return) return setFocus("input");
+      if (input === "e" && selectedMsg) return setPicking(true);
       if (input === "o") {
         if (selectedMsg?.url && openUrl(selectedMsg.url)) flash("opened in browser");
         else flash("nothing to open in this message");
@@ -248,7 +270,16 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           height={paneHeight}
         />
       </Box>
-      <Composer active={focus === "input"} enabled={!!active} error={sendError} onSubmit={submit} />
+      {picking ? (
+        <Text>
+          <Text color="cyan">React: </Text>
+          {PICKER.map((icon, i) => `${i + 1} ${reactionIcon(icon)}  `).join("")}
+          <Text dimColor>0 remove · Esc cancel</Text>
+        </Text>
+      ) : null}
+      <Box display={picking ? "none" : "flex"}>
+        <Composer active={focus === "input"} enabled={!!active} error={sendError} onSubmit={submit} />
+      </Box>
       <StatusBar connection={state.connection} selfName={state.selfName} focus={focus} notify={state.notify} toast={toast} />
     </Box>
   );

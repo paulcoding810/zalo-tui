@@ -21,7 +21,7 @@ export function StatusBar({ connection, selfName, focus, notify, toast }: Props)
       ? "↑↓ move · Enter open · / filter · n notify · Tab compose · Ctrl+C quit"
       : focus === "input"
         ? "Enter send · Tab select msg · Esc chats · PgUp/PgDn scroll · Ctrl+C quit"
-        : "↑↓ select · o open photo/link · Enter/Esc compose · Tab chats · Ctrl+C quit";
+        : "↑↓ select · e react · o open photo/link · Enter/Esc compose · Tab chats · Ctrl+C quit";
   return (
     <Text wrap="truncate-end">
       <Text color={COLORS[connection.state]}>● {label}</Text>

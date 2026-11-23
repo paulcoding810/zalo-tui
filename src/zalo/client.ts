@@ -1,4 +1,4 @@
-import { CloseReason, ThreadType, type API, type Message, type Reaction, type Undo } from "zca-js";
+import { CloseReason, Reactions, ThreadType, type API, type Message, type Reaction, type Undo } from "zca-js";
 import { messageText } from "../format.ts";
 import { loadActivity, saveActivity } from "./session.ts";
 import { mutedUntil, notificationContent, shouldNotify, showNotification } from "../notify.ts";
@@ -55,6 +55,7 @@ export class ZaloClient {
     const mentions = m.type === ThreadType.Group ? (m.data.mentions ?? []) : [];
     return {
       id: String(m.data.msgId),
+      cliMsgId: m.data.cliMsgId ? String(m.data.cliMsgId) : undefined,
       threadKey: threadKey(kind, m.threadId),
       senderName: m.isSelf ? "me" : m.data.dName || m.data.uidFrom,
       isSelf: m.isSelf,
@@ -256,6 +257,17 @@ export class ZaloClient {
     this.store.update((s) =>
       addMessages(s, [{ id: String(msgId), threadKey: key, senderName: "me", isSelf: true, ts: Date.now(), text }], false),
     );
+  }
+
+  async react(message: ChatMessage, icon: string): Promise<void> {
+    if (!message.cliMsgId) throw new Error("this message can't be reacted to yet");
+    const { kind, id } = parseKey(message.threadKey);
+    await this.api.addReaction(icon as Reactions, {
+      data: { msgId: message.id, cliMsgId: message.cliMsgId },
+      threadId: id,
+      type: kind === "group" ? ThreadType.Group : ThreadType.User,
+    });
+    this.store.update((s) => applyReaction(s, message.threadKey, [message.id], this.selfId, icon, Date.now()));
   }
 
   stop(): void {

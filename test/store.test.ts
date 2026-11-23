@@ -107,3 +107,11 @@ test("reactions keep each person's latest icon and can be removed", () => {
   assert.equal(s.reactions[reactionKey(A, "m1")]!["u1"], undefined);
   assert.deepEqual(reactionSummary(undefined), []);
 });
+
+test("a duplicate message fills in a missing client id", () => {
+  let s = addMessages(base(), [msg("a", A, 1)], false);
+  s = addMessages(s, [msg("a", A, 1, { cliMsgId: "c1", text: "other" })], false);
+  assert.equal(s.messages[A]!.length, 1);
+  assert.equal(s.messages[A]![0]!.cliMsgId, "c1");
+  assert.equal(s.messages[A]![0]!.text, "a");
+});
