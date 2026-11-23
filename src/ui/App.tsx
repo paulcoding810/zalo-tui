@@ -240,6 +240,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
         <MessagePane
           thread={active}
           messages={messages}
+          reactions={state.reactions}
           scroll={scroll}
           selectedId={selectedMsg?.id ?? null}
           focused={focus === "messages"}

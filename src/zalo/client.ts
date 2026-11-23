@@ -1,4 +1,4 @@
-import { CloseReason, ThreadType, type API, type Message, type Undo } from "zca-js";
+import { CloseReason, ThreadType, type API, type Message, type Reaction, type Undo } from "zca-js";
 import { messageText } from "../format.ts";
 import { loadActivity, saveActivity } from "./session.ts";
 import { mutedUntil, notificationContent, shouldNotify, showNotification } from "../notify.ts";
@@ -6,6 +6,7 @@ import {
   activitySnapshot,
   addMessages,
   applyActivity,
+  applyReaction,
   markRecalled,
   parseKey,
   setConnection,
@@ -164,6 +165,8 @@ export class ZaloClient {
       this.historyOldest.clear();
       this.requestHistory(ThreadType.User);
       this.requestHistory(ThreadType.Group);
+      listener.requestOldReactions(ThreadType.User);
+      listener.requestOldReactions(ThreadType.Group);
     });
     listener.on("disconnected", (code, reason) => {
       this.store.update((s) => setConnection(s, { state: "connecting", reason: closeReason(code, reason) }));
@@ -174,9 +177,23 @@ export class ZaloClient {
     listener.on("error", () => {});
     listener.on("message", (m) => this.ingest([m], true));
     listener.on("old_messages", (ms, type) => this.onOldMessages(ms, type));
+    listener.on("reaction", (r) => this.ingestReactions([r]));
+    listener.on("old_reactions", (rs) => this.ingestReactions(rs));
     listener.on("undo", (u: Undo) => {
       const key = threadKey(u.isGroup ? "group" : "user", u.threadId);
       this.store.update((s) => markRecalled(s, key, String(u.data.content.globalMsgId)));
+    });
+  }
+
+  private ingestReactions(reactions: Reaction[]): void {
+    this.store.update((s) => {
+      let next = s;
+      for (const r of reactions) {
+        const key = threadKey(r.isGroup ? "group" : "user", r.threadId);
+        const msgIds = (r.data.content?.rMsg ?? []).map((x) => String(x.gMsgID));
+        next = applyReaction(next, key, msgIds, r.data.uidFrom, r.data.content?.rIcon ?? "", Number(r.data.ts) || Date.now());
+      }
+      return next;
     });
   }
 

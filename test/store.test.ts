@@ -4,9 +4,12 @@ import {
   activitySnapshot,
   addMessages,
   applyActivity,
+  applyReaction,
   initialState,
   markRecalled,
   openThread,
+  reactionKey,
+  reactionSummary,
   sortedThreads,
   threadKey,
   upsertThreads,
@@ -86,4 +89,21 @@ test("activity round-trips and restores order across runs", () => {
   const newer = addMessages(base(), [msg("z", G, 500)], false);
   assert.equal(applyActivity(newer, saved).threads[G]!.lastTs, 500);
   assert.equal(Object.keys(applyActivity(base(), { "bad": { name: "x", ts: 1 }, "x:1": { name: "y", ts: 2 } } as never).threads).length, 3);
+});
+
+test("reactions keep each person's latest icon and can be removed", () => {
+  let s = base();
+  s = applyReaction(s, A, ["m1"], "u1", "/-heart", 10);
+  s = applyReaction(s, A, ["m1"], "u2", "/-heart", 11);
+  s = applyReaction(s, A, ["m1"], "u3", "/-strong", 12);
+  assert.deepEqual(reactionSummary(s.reactions[reactionKey(A, "m1")]), [
+    { icon: "/-heart", count: 2 },
+    { icon: "/-strong", count: 1 },
+  ]);
+  s = applyReaction(s, A, ["m1"], "u2", "/-strong", 20);
+  s = applyReaction(s, A, ["m1"], "u2", "/-heart", 15);
+  assert.equal(s.reactions[reactionKey(A, "m1")]!["u2"]!.icon, "/-strong");
+  s = applyReaction(s, A, ["m1"], "u1", "", 30);
+  assert.equal(s.reactions[reactionKey(A, "m1")]!["u1"], undefined);
+  assert.deepEqual(reactionSummary(undefined), []);
 });

@@ -1,12 +1,13 @@
 import { Box, Text } from "ink";
-import { formatTime, wrapText } from "../format.ts";
-import type { ChatMessage, Thread } from "../store.ts";
+import { formatTime, reactionIcon, wrapText } from "../format.ts";
+import { reactionKey, reactionSummary, type ChatMessage, type ReactionEntry, type Thread } from "../store.ts";
 
 type Line = { key: string; msgId: string; time: string; sender: string; isSelf: boolean; text: string; dim: boolean };
 
 type Props = {
   thread: Thread | null;
   messages: ChatMessage[];
+  reactions: Record<string, Record<string, ReactionEntry>>;
   scroll: number;
   selectedId: string | null;
   focused: boolean;
@@ -14,13 +15,21 @@ type Props = {
   height: number;
 };
 
-export function buildLines(messages: ChatMessage[], width: number): Line[] {
+export function buildLines(
+  messages: ChatMessage[],
+  width: number,
+  reactions: Record<string, Record<string, ReactionEntry>> = {},
+): Line[] {
   const lines: Line[] = [];
   for (const m of messages) {
     const time = formatTime(m.ts);
     const sender = m.isSelf ? "me" : m.senderName;
     const prefixLength = Array.from(`${time} ${sender}: `).length;
-    const body = m.recalled ? "[recalled]" : m.url ? `${m.text} ↗` : m.text;
+    const summary = reactionSummary(reactions[reactionKey(m.threadKey, m.id)])
+      .map((r) => `${reactionIcon(r.icon)}${r.count > 1 ? r.count : ""}`)
+      .join(" ");
+    const text = m.recalled ? "[recalled]" : m.url ? `${m.text} ↗` : m.text;
+    const body = summary ? `${text}  ${summary}` : text;
     const parts = wrapText(body, Math.max(10, width - prefixLength));
     parts.forEach((text, i) =>
       lines.push({
@@ -37,9 +46,9 @@ export function buildLines(messages: ChatMessage[], width: number): Line[] {
   return lines;
 }
 
-export function MessagePane({ thread, messages, scroll, selectedId, focused, width, height }: Props) {
+export function MessagePane({ thread, messages, reactions, scroll, selectedId, focused, width, height }: Props) {
   const inner = width - 4;
-  const lines = buildLines(messages, inner);
+  const lines = buildLines(messages, inner, reactions);
   const maxScroll = Math.max(0, lines.length - height);
   let offset = Math.min(scroll, maxScroll);
   const first = selectedId ? lines.findIndex((l) => l.msgId === selectedId) : -1;

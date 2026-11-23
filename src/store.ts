@@ -23,6 +23,8 @@ export type ChatMessage = {
   url?: string;
 };
 
+export type ReactionEntry = { icon: string; ts: number };
+
 export type Connection = {
   state: "idle" | "connecting" | "connected" | "closed";
   reason?: string;
@@ -33,6 +35,7 @@ export type State = {
   selfName: string;
   threads: Record<string, Thread>;
   messages: Record<string, ChatMessage[]>;
+  reactions: Record<string, Record<string, ReactionEntry>>;
   unread: Record<string, number>;
   activeKey: string | null;
   connection: Connection;
@@ -54,6 +57,7 @@ export function initialState(): State {
     selfName: "",
     threads: {},
     messages: {},
+    reactions: {},
     unread: {},
     activeKey: null,
     connection: { state: "idle" },
@@ -110,6 +114,37 @@ export function markRecalled(state: State, key: string, msgId: string): State {
     ...state,
     messages: { ...state.messages, [key]: list.map((m) => (m.id === msgId ? { ...m, recalled: true } : m)) },
   };
+}
+
+export function reactionKey(threadKey: string, msgId: string): string {
+  return `${threadKey}|${msgId}`;
+}
+
+export function applyReaction(
+  state: State,
+  threadKey: string,
+  msgIds: string[],
+  uid: string,
+  icon: string,
+  ts: number,
+): State {
+  let reactions = state.reactions;
+  for (const msgId of msgIds) {
+    const key = reactionKey(threadKey, msgId);
+    const current = reactions[key] ?? {};
+    if ((current[uid]?.ts ?? -Infinity) > ts) continue;
+    const next = { ...current };
+    if (icon) next[uid] = { icon, ts };
+    else delete next[uid];
+    reactions = { ...reactions, [key]: next };
+  }
+  return reactions === state.reactions ? state : { ...state, reactions };
+}
+
+export function reactionSummary(entries: Record<string, ReactionEntry> | undefined): { icon: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const { icon } of Object.values(entries ?? {})) counts.set(icon, (counts.get(icon) ?? 0) + 1);
+  return [...counts].map(([icon, count]) => ({ icon, count })).sort((a, b) => b.count - a.count || a.icon.localeCompare(b.icon));
 }
 
 export function openThread(state: State, key: string): State {
