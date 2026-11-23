@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  activitySnapshot,
   addMessages,
+  applyActivity,
   initialState,
   markRecalled,
   openThread,
@@ -70,4 +72,18 @@ test("recalled messages are flagged", () => {
   s = markRecalled(s, A, "a");
   assert.equal(s.messages[A]![0]!.recalled, true);
   assert.equal(markRecalled(s, A, "missing"), s);
+});
+
+test("activity round-trips and restores order across runs", () => {
+  const doc = threadKey("user", "55");
+  let s = addMessages(base(), [msg("a", G, 100), msg("b", doc, 200, { isSelf: true })], false);
+  s = upsertThreads(s, [{ id: "55", kind: "user", name: "My Documents" }]);
+  const saved = JSON.parse(JSON.stringify(activitySnapshot(s)));
+  assert.deepEqual(Object.keys(saved).sort(), [doc, G].sort());
+  const fresh = applyActivity(base(), saved);
+  assert.deepEqual(sortedThreads(fresh).map((t) => t.name), ["My Documents", "Team", "An", "Binh"]);
+  assert.equal(fresh.threads[doc]!.placeholder, false);
+  const newer = addMessages(base(), [msg("z", G, 500)], false);
+  assert.equal(applyActivity(newer, saved).threads[G]!.lastTs, 500);
+  assert.equal(Object.keys(applyActivity(base(), { "bad": { name: "x", ts: 1 }, "x:1": { name: "y", ts: 2 } } as never).threads).length, 3);
 });

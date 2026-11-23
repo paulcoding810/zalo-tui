@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync }
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { NotifyMode } from "../notify.ts";
+import type { Activity } from "../store.ts";
 import { Zalo, type API, type Credentials, type LoginQRCallback } from "zca-js";
 
 export const stateDir = process.env.ZALO_TUI_HOME ?? join(homedir(), ".config", "zalo-tui");
@@ -22,6 +23,21 @@ export function loadSettings(): Settings {
 export function saveSettings(settings: Settings): void {
   ensureStateDir();
   writeFileSync(settingsPath, JSON.stringify(settings), { mode: 0o600 });
+}
+
+const activityPath = join(stateDir, "activity.json");
+
+export function loadActivity(): Activity {
+  try {
+    return JSON.parse(readFileSync(activityPath, "utf8")) as Activity;
+  } catch {
+    return {};
+  }
+}
+
+export function saveActivity(activity: Activity): void {
+  ensureStateDir();
+  writeFileSync(activityPath, JSON.stringify(activity), { mode: 0o600 });
 }
 
 export function ensureStateDir(): void {

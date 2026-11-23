@@ -1,8 +1,11 @@
 import { CloseReason, ThreadType, type API, type Message, type Undo } from "zca-js";
 import { messageText } from "../format.ts";
+import { loadActivity, saveActivity } from "./session.ts";
 import { mutedUntil, notificationContent, shouldNotify, showNotification } from "../notify.ts";
 import {
+  activitySnapshot,
   addMessages,
+  applyActivity,
   markRecalled,
   parseKey,
   setConnection,
@@ -31,6 +34,9 @@ export class ZaloClient {
   private muted = new Map<string, number>();
   private lastNotified = new Map<string, number>();
   private selfId = "";
+  private savedActivity = "";
+  private saveTimer: NodeJS.Timeout | null = null;
+  private unsubscribe: (() => void) | null = null;
 
   constructor(
     private api: API,
@@ -72,6 +78,11 @@ export class ZaloClient {
       ),
     );
     await this.loadGroups(Object.keys(groups.gridVerMap ?? {}));
+    const activity = loadActivity();
+    this.savedActivity = JSON.stringify(activity);
+    this.store.update((s) => applyActivity(s, activity));
+    for (const t of Object.values(this.store.getState().threads)) if (t.placeholder) void this.resolveName(t.key);
+    this.unsubscribe = this.store.subscribe(() => this.scheduleSave());
     this.attachListener();
     this.connect();
   }
@@ -87,6 +98,23 @@ export class ZaloClient {
         ),
       );
     }
+  }
+
+  private scheduleSave(): void {
+    if (this.saveTimer) return;
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      this.saveNow();
+    }, 2000);
+  }
+
+  private saveNow(): void {
+    const json = JSON.stringify(activitySnapshot(this.store.getState()));
+    if (json === this.savedActivity) return;
+    try {
+      saveActivity(JSON.parse(json));
+      this.savedActivity = json;
+    } catch {}
   }
 
   private async loadMuted(): Promise<void> {
@@ -193,6 +221,10 @@ export class ZaloClient {
   }
 
   stop(): void {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = null;
+    this.unsubscribe?.();
+    this.saveNow();
     try {
       this.api.listener.stop();
     } catch {}

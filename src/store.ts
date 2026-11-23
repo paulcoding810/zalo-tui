@@ -122,6 +122,31 @@ export function setConnection(state: State, connection: Connection): State {
   return { ...state, connection };
 }
 
+export type Activity = Record<string, { name: string; ts: number }>;
+
+export function activitySnapshot(state: State): Activity {
+  const out: Activity = {};
+  for (const t of Object.values(state.threads)) if (t.lastTs > 0) out[t.key] = { name: t.name, ts: t.lastTs };
+  return out;
+}
+
+export function applyActivity(state: State, activity: Activity): State {
+  const threads = { ...state.threads };
+  for (const [key, entry] of Object.entries(activity)) {
+    if (!entry || typeof entry.ts !== "number" || !key.includes(":")) continue;
+    const existing = threads[key];
+    if (existing) {
+      if (entry.ts > existing.lastTs) threads[key] = { ...existing, lastTs: entry.ts };
+      continue;
+    }
+    const { kind, id } = parseKey(key);
+    if (kind !== "user" && kind !== "group") continue;
+    const name = entry.name || id;
+    threads[key] = { key, id, kind, name, lastTs: entry.ts, placeholder: name === id };
+  }
+  return { ...state, threads };
+}
+
 export function sortedThreads(state: State, filter = ""): Thread[] {
   const q = filter.trim().toLowerCase();
   const list = Object.values(state.threads).filter((t) => !q || t.name.toLowerCase().includes(q));
