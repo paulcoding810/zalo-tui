@@ -19,6 +19,7 @@ import {
 } from "../store.ts";
 
 const HISTORY_REQUESTS = 4;
+const ATTACHMENT_TIMEOUT_MS = 90_000;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -264,7 +265,17 @@ export class ZaloClient {
   async sendAttachment(key: string, request: AttachmentRequest): Promise<void> {
     const { kind, id } = parseKey(key);
     const type = kind === "group" ? ThreadType.Group : ThreadType.User;
-    const result = await this.api.sendMessage({ msg: request.caption, attachments: [request.path] }, id, type);
+    if (request.kind === "file" && this.store.getState().connection.state !== "connected") {
+      throw new Error("files need the live connection; reconnect first");
+    }
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("timed out after 90s")), ATTACHMENT_TIMEOUT_MS);
+    });
+    const result = await Promise.race([
+      this.api.sendMessage({ msg: request.caption, attachments: [request.path] }, id, type),
+      timeout,
+    ]).finally(() => clearTimeout(timer));
     const sent = result.attachment[0]?.msgId;
     if (sent === undefined) throw new Error("Zalo did not accept the attachment");
     const name = basename(request.path);
