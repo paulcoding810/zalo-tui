@@ -20,7 +20,6 @@ import {
   type Store,
 } from "../store.ts";
 
-const HISTORY_REQUESTS = 4;
 const ATTACHMENT_TIMEOUT_MS = 90_000;
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -43,8 +42,6 @@ export class ZaloClient {
   private lastNotified = new Map<string, number>();
   private selfId = "";
   private deleted = new Set<string>();
-  private historyRequests = new Map<ThreadType, number>();
-  private historyOldest = new Map<ThreadType, number>();
   private savedActivity = "";
   private saveTimer: NodeJS.Timeout | null = null;
   private unsubscribe: (() => void) | null = null;
@@ -128,21 +125,6 @@ export class ZaloClient {
     } catch {}
   }
 
-  private requestHistory(type: ThreadType, lastMsgId?: string): void {
-    this.historyRequests.set(type, (this.historyRequests.get(type) ?? 0) + 1);
-    this.api.listener.requestOldMessages(type, lastMsgId ?? null);
-  }
-
-  private onOldMessages(messages: Message[], type: ThreadType): void {
-    this.ingest(messages, false);
-    if (messages.length === 0 || (this.historyRequests.get(type) ?? 0) >= HISTORY_REQUESTS) return;
-    const oldest = messages.reduce((a, b) => (Number(b.data.ts) < Number(a.data.ts) ? b : a));
-    const ts = Number(oldest.data.ts);
-    if (!(ts < (this.historyOldest.get(type) ?? Infinity))) return;
-    this.historyOldest.set(type, ts);
-    this.requestHistory(type, String(oldest.data.msgId));
-  }
-
   private async loadMuted(): Promise<void> {
     try {
       const r = await this.api.getMute();
@@ -171,10 +153,8 @@ export class ZaloClient {
     const { listener } = this.api;
     listener.on("connected", () => {
       this.store.update((s) => setConnection(s, { state: "connected" }));
-      this.historyRequests.clear();
-      this.historyOldest.clear();
-      this.requestHistory(ThreadType.User);
-      this.requestHistory(ThreadType.Group);
+      listener.requestOldMessages(ThreadType.User);
+      listener.requestOldMessages(ThreadType.Group);
       listener.requestOldReactions(ThreadType.User);
       listener.requestOldReactions(ThreadType.Group);
     });
@@ -186,7 +166,7 @@ export class ZaloClient {
     });
     listener.on("error", () => {});
     listener.on("message", (m) => this.ingest([m], true));
-    listener.on("old_messages", (ms, type) => this.onOldMessages(ms, type));
+    listener.on("old_messages", (ms) => this.ingest(ms, false));
     listener.on("reaction", (r) => this.ingestReactions([r]));
     listener.on("old_reactions", (rs) => this.ingestReactions(rs));
     listener.on("undo", (u: Undo) => {
