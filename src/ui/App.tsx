@@ -203,6 +203,14 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const pageSize = Math.max(1, paneHeight - 2);
 
   const msgIndex = messages.findIndex((m) => m.id === selectedMsgId);
+  const popupOpen = picker !== null || deleting || linkChoices !== null;
+  const popupTargetGone = popupOpen && msgIndex === -1;
+  useEffect(() => {
+    if (!popupTargetGone) return;
+    setPicker(null);
+    setDeleting(false);
+    setLinkChoices(null);
+  }, [popupTargetGone]);
   const selectedMsg = focus === "messages" ? messages[msgIndex === -1 ? messages.length - 1 : msgIndex] : undefined;
 
   const flash = (text: string) => {
@@ -379,7 +387,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       if (key.escape) return setDeleting(false);
       if (key.upArrow || input === "k") return setDeleteCursor((c) => Math.max(0, c - 1));
       if (key.downArrow || input === "j") return setDeleteCursor((c) => Math.min(options.length - 1, c + 1));
-      if (key.return) return removeSelected(options[deleteCursor]!.mode);
+      if (key.return) return removeSelected(options[Math.min(deleteCursor, options.length - 1)]!.mode);
       if (input === "r" && selectedMsg?.isSelf) return removeSelected("recall");
       if (input === "d") return removeSelected("delete");
       return;
@@ -430,8 +438,12 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       if (key.return || input === "i") return setFocus("input");
       if (key.escape || input === "h") return setFocus("list");
       if (input === "?") return setShowHelp(true);
-      if (input === "e" && selectedMsg) return setPicker({ query: "", cursor: 0 });
+      if (input === "e" && selectedMsg) {
+        setSelectedMsgId(selectedMsg.id);
+        return setPicker({ query: "", cursor: 0 });
+      }
       if (input === "d" && selectedMsg && !selectedMsg.recalled) {
+        setSelectedMsgId(selectedMsg.id);
         setDeleteCursor(0);
         return setDeleting(true);
       }
@@ -440,6 +452,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
         if (links.length === 0) flash("nothing to open in this message");
         else if (links.length === 1) openLink(links[0]!);
         else {
+          setSelectedMsgId(selectedMsg.id);
           setLinkCursor(0);
           setLinkChoices(links.slice(0, 9));
         }
@@ -547,7 +560,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           <ChoicePopup
             frame={deleteFrame}
             title="Remove message"
-            cursor={deleteCursor}
+            cursor={Math.min(deleteCursor, deleteOptions(selectedMsg.isSelf).length - 1)}
             choices={deleteOptions(selectedMsg.isSelf).map((o) => ({ hint: o.key, label: o.label, color: "red" }))}
             footer="↑↓ Enter · Esc cancel"
           />
