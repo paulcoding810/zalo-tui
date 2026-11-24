@@ -10,6 +10,7 @@ import {
   applyActivity,
   applyReaction,
   markRecalled,
+  removeMessage,
   parseKey,
   setConnection,
   threadKey,
@@ -40,6 +41,7 @@ export class ZaloClient {
   private muted = new Map<string, number>();
   private lastNotified = new Map<string, number>();
   private selfId = "";
+  private deleted = new Set<string>();
   private historyRequests = new Map<ThreadType, number>();
   private historyOldest = new Map<ThreadType, number>();
   private savedActivity = "";
@@ -59,6 +61,7 @@ export class ZaloClient {
     return {
       id: String(m.data.msgId),
       cliMsgId: m.data.cliMsgId ? String(m.data.cliMsgId) : undefined,
+      senderId: String(m.data.uidFrom),
       threadKey: threadKey(kind, m.threadId),
       senderName: m.isSelf ? "me" : m.data.dName || m.data.uidFrom,
       isSelf: m.isSelf,
@@ -202,7 +205,7 @@ export class ZaloClient {
   }
 
   private ingest(messages: Message[], live: boolean): void {
-    const converted = messages.map((m) => this.toChatMessage(m));
+    const converted = messages.map((m) => this.toChatMessage(m)).filter((m) => !this.deleted.has(m.id));
     const before = this.store.getState().messages;
     const fresh = converted.filter((m) => !before[m.threadKey]?.some((x) => x.id === m.id));
     this.store.update((s) => addMessages(s, converted, live));
@@ -287,6 +290,28 @@ export class ZaloClient {
     const caption = request.kind === "photo" && request.caption ? ` ${request.caption}` : "";
     local.push({ id: String(sent), threadKey: key, senderName: "me", isSelf: true, ts: now, text: `[${request.kind}] ${name}${caption}` });
     this.store.update((s) => addMessages(s, local, false));
+  }
+
+  private destination(message: ChatMessage) {
+    if (!message.cliMsgId) throw new Error("this message can't be changed yet");
+    const { kind, id } = parseKey(message.threadKey);
+    return { threadId: id, type: kind === "group" ? ThreadType.Group : ThreadType.User, cliMsgId: message.cliMsgId };
+  }
+
+  async recall(message: ChatMessage): Promise<void> {
+    if (!message.isSelf) throw new Error("only your own messages can be recalled");
+    const { threadId, type, cliMsgId } = this.destination(message);
+    await this.api.undo({ msgId: message.id, cliMsgId }, threadId, type);
+    this.store.update((s) => markRecalled(s, message.threadKey, message.id));
+  }
+
+  async deleteForMe(message: ChatMessage): Promise<void> {
+    const { threadId, type, cliMsgId } = this.destination(message);
+    const uidFrom = message.isSelf ? this.selfId : message.senderId;
+    if (!uidFrom) throw new Error("sender unknown for this message");
+    await this.api.deleteMessage({ data: { cliMsgId, msgId: message.id, uidFrom }, threadId, type }, true);
+    this.deleted.add(message.id);
+    this.store.update((s) => removeMessage(s, message.threadKey, message.id));
   }
 
   async react(message: ChatMessage, icon: string): Promise<void> {

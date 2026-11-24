@@ -10,6 +10,7 @@ import {
   openThread,
   reactionKey,
   reactionSummary,
+  removeMessage,
   sortedThreads,
   threadKey,
   upsertThreads,
@@ -114,4 +115,11 @@ test("a duplicate message fills in a missing client id", () => {
   assert.equal(s.messages[A]!.length, 1);
   assert.equal(s.messages[A]![0]!.cliMsgId, "c1");
   assert.equal(s.messages[A]![0]!.text, "a");
+});
+
+test("removing a message drops only that message", () => {
+  let s = addMessages(base(), [msg("a", A, 1), msg("b", A, 2)], false);
+  s = removeMessage(s, A, "a");
+  assert.deepEqual(s.messages[A]!.map((m) => m.id), ["b"]);
+  assert.equal(removeMessage(s, A, "missing"), s);
 });

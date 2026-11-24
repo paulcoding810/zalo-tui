@@ -14,6 +14,7 @@ export type Thread = {
 export type ChatMessage = {
   id: string;
   cliMsgId?: string;
+  senderId?: string;
   threadKey: string;
   senderName: string;
   isSelf: boolean;
@@ -150,6 +151,12 @@ export function reactionSummary(entries: Record<string, ReactionEntry> | undefin
   const counts = new Map<string, number>();
   for (const { icon } of Object.values(entries ?? {})) counts.set(icon, (counts.get(icon) ?? 0) + 1);
   return [...counts].map(([icon, count]) => ({ icon, count })).sort((a, b) => b.count - a.count || a.icon.localeCompare(b.icon));
+}
+
+export function removeMessage(state: State, key: string, msgId: string): State {
+  const list = state.messages[key];
+  if (!list || !list.some((m) => m.id === msgId)) return state;
+  return { ...state, messages: { ...state.messages, [key]: list.filter((m) => m.id !== msgId) } };
 }
 
 export function openThread(state: State, key: string): State {

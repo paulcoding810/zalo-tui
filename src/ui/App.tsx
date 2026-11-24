@@ -148,6 +148,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const [selectedMsgId, setSelectedMsgId] = useState<string | null>(null);
   const [toast, setToast] = useState<string>();
   const [picking, setPicking] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [pending, setPending] = useState<PendingAttachment | null>(null);
   const resolvePending = useRef<((ok: boolean) => void) | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -236,7 +237,22 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     void (action === "send" ? sendAttachmentTo(p.key, p.request) : sendTextTo(p.key, p.text)).then(resolve);
   };
 
+  const removeSelected = (mode: "recall" | "delete") => {
+    const target = selectedMsg;
+    setDeleting(false);
+    if (!target) return;
+    (mode === "recall" ? client.recall(target) : client.deleteForMe(target))
+      .then(() => flash(mode === "recall" ? "recalled for everyone" : "deleted for you"))
+      .catch((e) => flash(`${mode === "recall" ? "recall" : "delete"} failed: ${errorMessage(e)}`));
+  };
+
   useInput((input, key) => {
+    if (deleting) {
+      if (key.escape) return setDeleting(false);
+      if (input === "r" && selectedMsg?.isSelf) return removeSelected("recall");
+      if (input === "d") return removeSelected("delete");
+      return;
+    }
     if (pending) {
       if (key.return) finishPending("send");
       else if (key.escape) finishPending("cancel");
@@ -268,6 +284,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       if (next !== null) return setSelectedMsgId(messages[next]?.id ?? null);
       if (key.escape || key.return || input === "i") return setFocus("input");
       if (input === "e" && selectedMsg) return setPicking(true);
+      if (input === "d" && selectedMsg && !selectedMsg.recalled) return setDeleting(true);
       if (input === "o") {
         if (selectedMsg?.url && openUrl(selectedMsg.url)) flash("opened in browser");
         else flash("nothing to open in this message");
@@ -358,6 +375,12 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           <Text dimColor>Enter send · t send as text · Esc cancel</Text>
         </Text>
       ) : null}
+      {deleting && selectedMsg ? (
+        <Text wrap="truncate-end">
+          <Text color="red">Remove this message? </Text>
+          {selectedMsg.isSelf ? "r recall for everyone · " : ""}d delete for me <Text dimColor>· Esc cancel</Text>
+        </Text>
+      ) : null}
       {picking ? (
         <Text>
           <Text color="cyan">React: </Text>
@@ -365,7 +388,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           <Text dimColor>0 remove · Esc cancel</Text>
         </Text>
       ) : null}
-      <Box display={picking || pending ? "none" : "flex"}>
+      <Box display={picking || pending || deleting ? "none" : "flex"}>
         <Composer draftKey={state.activeKey} active={focus === "input"} enabled={!!active} error={sendError} onSubmit={submit} />
       </Box>
       <StatusBar connection={state.connection} selfName={state.selfName} focus={focus} notify={state.notify} toast={toast} />
