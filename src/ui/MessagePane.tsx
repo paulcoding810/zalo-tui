@@ -17,15 +17,9 @@ type Line = {
 
 type Props = {
   thread: Thread | null;
-  messages: ChatMessage[];
-  reactions: Record<string, Record<string, ReactionEntry>>;
-  selfId: string;
-  scroll: number;
+  layout: PaneLayout;
   selectedId: string | null;
-  followSelection: boolean;
-  info?: { current: { offset: number; max: number; rows: (string | null)[] } };
   focused: boolean;
-  width: number;
   height: number;
 };
 
@@ -77,23 +71,22 @@ export function buildLines(
   return lines;
 }
 
-export function MessagePane({
-  thread,
-  messages,
-  reactions,
-  selfId,
-  scroll,
-  selectedId,
-  followSelection,
-  info,
-  focused,
-  width,
-  height,
-}: Props) {
-  const inner = width - 4;
-  const lines = buildLines(messages, inner, reactions, selfId);
-  const maxScroll = Math.max(0, lines.length - height);
-  let offset = Math.min(scroll, maxScroll);
+export type PaneLayout = { lines: Line[]; visible: Line[]; offset: number; max: number; rows: (string | null)[] };
+
+export function paneLayout(options: {
+  messages: ChatMessage[];
+  reactions: Record<string, Record<string, ReactionEntry>>;
+  selfId: string;
+  scroll: number;
+  selectedId: string | null;
+  followSelection: boolean;
+  width: number;
+  height: number;
+}): PaneLayout {
+  const { messages, reactions, selfId, scroll, selectedId, followSelection, width, height } = options;
+  const lines = buildLines(messages, width - 4, reactions, selfId);
+  const max = Math.max(0, lines.length - height);
+  let offset = Math.min(scroll, max);
   const first = selectedId && followSelection ? lines.findIndex((l) => l.msgId === selectedId) : -1;
   if (first !== -1) {
     let last = first;
@@ -102,11 +95,13 @@ export function MessagePane({
     if (first < lines.length - offset - height) offset = Math.max(0, lines.length - first - height);
   }
   const visible = lines.slice(Math.max(0, lines.length - height - offset), lines.length - offset);
-  if (info) {
-    const rows: (string | null)[] = Array.from({ length: height }, () => null);
-    visible.forEach((l, i) => (rows[height - visible.length + i] = l.msgId));
-    info.current = { offset, max: maxScroll, rows };
-  }
+  const rows: (string | null)[] = Array.from({ length: height }, () => null);
+  visible.forEach((l, i) => (rows[height - visible.length + i] = l.msgId));
+  return { lines, visible, offset, max, rows };
+}
+
+export function MessagePane({ thread, layout, selectedId, focused, height }: Props) {
+  const { lines, visible, offset } = layout;
   const title = thread ? `${thread.kind === "group" ? "#" : ""}${thread.name}` : "No chat open";
 
   return (

@@ -16,7 +16,7 @@ import { loadCredentials, loginWithQR, qrPath, restore, saveCredentials, saveSet
 import { ChatList } from "./ChatList.tsx";
 import { Composer } from "./Composer.tsx";
 import { LoginScreen } from "./LoginScreen.tsx";
-import { MessagePane } from "./MessagePane.tsx";
+import { MessagePane, paneLayout } from "./MessagePane.tsx";
 import { HelpPane } from "./HelpPane.tsx";
 import { placePopup, popupContentAt } from "./Popup.tsx";
 import { ChoicePopup, choicePopupHeight } from "./ChoicePopup.tsx";
@@ -230,11 +230,24 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     void client.loadHistory(key);
   };
 
+  const pane = paneLayout({
+    messages,
+    reactions: state.reactions,
+    selfId: state.selfId,
+    scroll,
+    selectedId: selectedMsg?.id ?? null,
+    followSelection: follow,
+    width: columns - sidebarWidth,
+    height: paneHeight,
+  });
+  paneInfo.current = { offset: pane.offset, max: pane.max, rows: pane.rows };
+
   const popupFrameFor = (width: number, height: number) =>
     placePopup(paneInfo.current.rows, selectedMsg?.id ?? null, sidebarWidth, columns - sidebarWidth, width, height, Math.min(height, 6));
 
   const wheel = useRef<(direction: -1 | 1, x: number) => void>(() => {});
   wheel.current = (direction, x) => {
+    if (popupOpen) return;
     if (x <= sidebarWidth) {
       if (filtering || threads.length === 0) return;
       setSelectedKey(threads[Math.min(threads.length - 1, Math.max(0, selected + direction))]?.key ?? null);
@@ -544,15 +557,9 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
         ) : (
           <MessagePane
             thread={active}
-            messages={messages}
-            reactions={state.reactions}
-            selfId={state.selfId}
-            scroll={scroll}
+            layout={pane}
             selectedId={selectedMsg?.id ?? null}
-            followSelection={follow}
-            info={paneInfo}
             focused={focus === "messages"}
-            width={columns - sidebarWidth}
             height={paneHeight}
           />
         )}
