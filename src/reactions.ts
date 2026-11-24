@@ -22,6 +22,23 @@ export function reactionIcon(code: string): string {
   return BY_CODE.get(code)?.emoji ?? code;
 }
 
+export function parseReactionContent(content: unknown): { msgIds: string[]; icon: string } {
+  let value: unknown = content;
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return { msgIds: [], icon: "" };
+    }
+  }
+  if (!value || typeof value !== "object") return { msgIds: [], icon: "" };
+  const { rMsg, rIcon } = value as { rMsg?: unknown; rIcon?: unknown };
+  const msgIds = Array.isArray(rMsg)
+    ? rMsg.map((x) => (x && typeof x === "object" ? (x as { gMsgID?: unknown }).gMsgID : undefined)).filter((id) => id !== undefined && id !== null).map(String)
+    : [];
+  return { msgIds, icon: typeof rIcon === "string" ? rIcon : "" };
+}
+
 export function searchReactions(query: string): ReactionOption[] {
   const q = query.trim().toLowerCase();
   if (!q) return REACTIONS;

@@ -2,6 +2,7 @@ import { CloseReason, Reactions, ThreadType, type API, type Message, type Reacti
 import { basename } from "node:path";
 import type { AttachmentRequest } from "../attachment.ts";
 import { attachmentUrl, cleanText, messageText } from "../format.ts";
+import { parseReactionContent } from "../reactions.ts";
 import { loadActivity, saveActivity } from "./session.ts";
 import { mutedUntil, notificationContent, notifySkipReason, showNotification } from "../notify.ts";
 import { debugLog } from "../debug.ts";
@@ -21,6 +22,7 @@ import {
 } from "../store.ts";
 
 const ATTACHMENT_TIMEOUT_MS = 90_000;
+const REACTION_FALLBACK_MS = 3000;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -42,6 +44,8 @@ export class ZaloClient {
   private lastNotified = new Map<string, number>();
   private selfId = "";
   private deleted = new Set<string>();
+  private historyPending = new Set<ThreadType>();
+  private reactionTimer: NodeJS.Timeout | null = null;
   private savedActivity = "";
   private saveTimer: NodeJS.Timeout | null = null;
   private unsubscribe: (() => void) | null = null;
@@ -153,10 +157,11 @@ export class ZaloClient {
     const { listener } = this.api;
     listener.on("connected", () => {
       this.store.update((s) => setConnection(s, { state: "connected" }));
+      this.historyPending = new Set([ThreadType.User, ThreadType.Group]);
       listener.requestOldMessages(ThreadType.User);
       listener.requestOldMessages(ThreadType.Group);
-      listener.requestOldReactions(ThreadType.User);
-      listener.requestOldReactions(ThreadType.Group);
+      if (this.reactionTimer) clearTimeout(this.reactionTimer);
+      this.reactionTimer = setTimeout(() => this.requestReactions(), REACTION_FALLBACK_MS);
     });
     listener.on("disconnected", (code, reason) => {
       this.store.update((s) => setConnection(s, { state: "connecting", reason: closeReason(code, reason) }));
@@ -166,7 +171,11 @@ export class ZaloClient {
     });
     listener.on("error", () => {});
     listener.on("message", (m) => this.ingest([m], true));
-    listener.on("old_messages", (ms) => this.ingest(ms, false));
+    listener.on("old_messages", (ms, type) => {
+      this.ingest(ms, false);
+      this.historyPending.delete(type);
+      if (this.historyPending.size === 0) this.requestReactions();
+    });
     listener.on("reaction", (r) => this.ingestReactions([r]));
     listener.on("old_reactions", (rs) => this.ingestReactions(rs));
     listener.on("undo", (u: Undo) => {
@@ -175,13 +184,21 @@ export class ZaloClient {
     });
   }
 
+  private requestReactions(): void {
+    if (!this.reactionTimer) return;
+    clearTimeout(this.reactionTimer);
+    this.reactionTimer = null;
+    this.api.listener.requestOldReactions(ThreadType.User);
+    this.api.listener.requestOldReactions(ThreadType.Group);
+  }
+
   private ingestReactions(reactions: Reaction[]): void {
     this.store.update((s) => {
       let next = s;
       for (const r of reactions) {
         const key = threadKey(r.isGroup ? "group" : "user", r.threadId);
-        const msgIds = (r.data.content?.rMsg ?? []).map((x) => String(x.gMsgID));
-        next = applyReaction(next, key, msgIds, r.data.uidFrom, r.data.content?.rIcon ?? "", Number(r.data.ts) || Date.now());
+        const { msgIds, icon } = parseReactionContent(r.data.content);
+        next = applyReaction(next, key, msgIds, r.data.uidFrom, icon, Number(r.data.ts) || Date.now());
       }
       return next;
     });
@@ -309,6 +326,8 @@ export class ZaloClient {
   }
 
   stop(): void {
+    if (this.reactionTimer) clearTimeout(this.reactionTimer);
+    this.reactionTimer = null;
     if (this.saveTimer) clearTimeout(this.saveTimer);
     this.saveTimer = null;
     this.unsubscribe?.();
