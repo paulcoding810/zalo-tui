@@ -12,7 +12,10 @@ export function trackTerminalFocus(onChange: (focused: boolean) => void): () => 
   };
   process.stdin.on("data", onData);
   process.stdout.write("\u001b[?1004h");
+  let stopped = false;
   return () => {
+    if (stopped) return;
+    stopped = true;
     process.stdin.off("data", onData);
     process.stdout.write("\u001b[?1004l");
   };

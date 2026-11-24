@@ -16,12 +16,14 @@ import { Composer } from "./Composer.tsx";
 import { LoginScreen } from "./LoginScreen.tsx";
 import { MessagePane } from "./MessagePane.tsx";
 import { navStep } from "./nav.ts";
+import { onWheel } from "../terminalMouse.ts";
 import { StatusBar } from "./StatusBar.tsx";
 import { StoreContext, useStoreState } from "./useStore.ts";
 
 type Focus = "list" | "input" | "messages";
 
 const PREVIEW_DELAY_MS = 300;
+const WHEEL_LINES = 3;
 
 const PICKER = ["/-heart", "/-strong", ":>", ":o", ":-((", ":-h"];
 
@@ -161,6 +163,18 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const [filter, setFilter] = useState("");
   const [filtering, setFiltering] = useState(false);
   const [scroll, setScroll] = useState(0);
+  const [follow, setFollow] = useState(true);
+  const followRef = useRef(true);
+  const paneInfo = useRef({ offset: 0, max: 0 });
+  const setFollowing = (value: boolean) => {
+    followRef.current = value;
+    setFollow(value);
+  };
+  const scrollBy = (delta: number) => {
+    const base = followRef.current ? paneInfo.current.offset : undefined;
+    setFollowing(false);
+    setScroll((s) => Math.min(paneInfo.current.max, Math.max(0, (base ?? s) + delta)));
+  };
   const [sendError, setSendError] = useState<string>();
 
   const threads = useMemo(() => sortedThreads(state, filter), [state.threads, filter]);
@@ -187,10 +201,22 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     if (key === store.getState().activeKey) return;
     store.update((s) => openThread(s, key));
     setScroll(0);
+    setFollowing(true);
     setSelectedMsgId(null);
     setSendError(undefined);
     void client.loadHistory(key);
   };
+
+  const wheel = useRef<(direction: -1 | 1, x: number) => void>(() => {});
+  wheel.current = (direction, x) => {
+    if (x <= sidebarWidth) {
+      if (filtering || threads.length === 0) return;
+      setSelectedKey(threads[Math.min(threads.length - 1, Math.max(0, selected + direction))]?.key ?? null);
+    } else {
+      scrollBy(direction < 0 ? WHEEL_LINES : -WHEEL_LINES);
+    }
+  };
+  useEffect(() => onWheel((e) => wheel.current(e.direction, e.x)), []);
 
   const highlighted = threads[selected]?.key ?? null;
   useEffect(() => {
@@ -283,8 +309,8 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       if (/^[1-9]$/.test(input) && icon) react(icon);
       return;
     }
-    if (key.pageUp) return setScroll((s) => s + pageSize);
-    if (key.pageDown) return setScroll((s) => Math.max(0, s - pageSize));
+    if (key.pageUp) return scrollBy(pageSize);
+    if (key.pageDown) return scrollBy(-pageSize);
     if (key.tab) {
       setFocus(focus === "list" && state.activeKey ? "messages" : "list");
       return;
@@ -297,7 +323,10 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     if (focus === "messages") {
       const i = msgIndex === -1 ? messages.length - 1 : msgIndex;
       const next = navStep(input, key, i, messages.length, half);
-      if (next !== null) return setSelectedMsgId(messages[next]?.id ?? null);
+      if (next !== null) {
+        setFollowing(true);
+        return setSelectedMsgId(messages[next]?.id ?? null);
+      }
       if (key.return || input === "i") return setFocus("input");
       if (key.escape || input === "h") return setFocus("list");
       if (input === "e" && selectedMsg) return setPicking(true);
@@ -382,6 +411,8 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           reactions={state.reactions}
           scroll={scroll}
           selectedId={selectedMsg?.id ?? null}
+          followSelection={follow}
+          info={paneInfo}
           focused={focus === "messages"}
           width={columns - sidebarWidth}
           height={paneHeight}

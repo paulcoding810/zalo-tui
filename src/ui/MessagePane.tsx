@@ -10,6 +10,8 @@ type Props = {
   reactions: Record<string, Record<string, ReactionEntry>>;
   scroll: number;
   selectedId: string | null;
+  followSelection: boolean;
+  info?: { current: { offset: number; max: number } };
   focused: boolean;
   width: number;
   height: number;
@@ -52,18 +54,30 @@ export function buildLines(
   return lines;
 }
 
-export function MessagePane({ thread, messages, reactions, scroll, selectedId, focused, width, height }: Props) {
+export function MessagePane({
+  thread,
+  messages,
+  reactions,
+  scroll,
+  selectedId,
+  followSelection,
+  info,
+  focused,
+  width,
+  height,
+}: Props) {
   const inner = width - 4;
   const lines = buildLines(messages, inner, reactions);
   const maxScroll = Math.max(0, lines.length - height);
   let offset = Math.min(scroll, maxScroll);
-  const first = selectedId ? lines.findIndex((l) => l.msgId === selectedId) : -1;
+  const first = selectedId && followSelection ? lines.findIndex((l) => l.msgId === selectedId) : -1;
   if (first !== -1) {
     let last = first;
     while (last + 1 < lines.length && lines[last + 1]!.msgId === selectedId) last++;
     if (last >= lines.length - offset) offset = lines.length - last - 1;
     if (first < lines.length - offset - height) offset = Math.max(0, lines.length - first - height);
   }
+  if (info) info.current = { offset, max: maxScroll };
   const visible = lines.slice(Math.max(0, lines.length - height - offset), lines.length - offset);
   const title = thread ? `${thread.kind === "group" ? "#" : ""}${thread.name}` : "No chat open";
 
