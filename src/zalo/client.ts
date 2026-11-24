@@ -3,6 +3,7 @@ import { basename } from "node:path";
 import type { AttachmentRequest } from "../attachment.ts";
 import { attachmentUrl, cleanText, messageText } from "../format.ts";
 import { parseReactionContent } from "../reactions.ts";
+import { metaAction, type MetaAction } from "./meta.ts";
 import { loadActivity, saveActivity } from "./session.ts";
 import { mutedUntil, notificationContent, notifySkipReason, showNotification } from "../notify.ts";
 import { debugLog } from "../debug.ts";
@@ -44,6 +45,7 @@ export class ZaloClient {
   private lastNotified = new Map<string, number>();
   private selfId = "";
   private deleted = new Set<string>();
+  private recalledIds = new Set<string>();
   private historyPending = new Set<ThreadType>();
   private reactionTimer: NodeJS.Timeout | null = null;
   private savedActivity = "";
@@ -180,6 +182,7 @@ export class ZaloClient {
     listener.on("old_reactions", (rs) => this.ingestReactions(rs));
     listener.on("undo", (u: Undo) => {
       const key = threadKey(u.isGroup ? "group" : "user", u.threadId);
+      this.recalledIds.add(String(u.data.content.globalMsgId));
       this.store.update((s) => markRecalled(s, key, String(u.data.content.globalMsgId)));
     });
   }
@@ -205,10 +208,30 @@ export class ZaloClient {
   }
 
   private ingest(messages: Message[], live: boolean): void {
-    const converted = messages.map((m) => this.toChatMessage(m)).filter((m) => !this.deleted.has(m.id));
+    const regular: Message[] = [];
+    const actions: { key: string; action: MetaAction }[] = [];
+    for (const m of messages) {
+      const action = metaAction(m.data.msgType, m.data.content);
+      if (!action) {
+        regular.push(m);
+        continue;
+      }
+      for (const id of action.ids) (action.kind === "recall" ? this.recalledIds : this.deleted).add(id);
+      actions.push({ key: threadKey(m.type === ThreadType.Group ? "group" : "user", m.threadId), action });
+    }
+    const converted = regular
+      .map((m) => this.toChatMessage(m))
+      .filter((m) => !this.deleted.has(m.id))
+      .map((m) => (this.recalledIds.has(m.id) ? { ...m, recalled: true } : m));
     const before = this.store.getState().messages;
     const fresh = converted.filter((m) => !before[m.threadKey]?.some((x) => x.id === m.id));
-    this.store.update((s) => addMessages(s, converted, live));
+    this.store.update((s) => {
+      let next = addMessages(s, converted, live);
+      for (const { key, action } of actions) {
+        for (const id of action.ids) next = action.kind === "recall" ? markRecalled(next, key, id) : removeMessage(next, key, id);
+      }
+      return next;
+    });
     if (live) this.notify(fresh);
     for (const key of new Set(converted.map((m) => m.threadKey))) {
       if (this.store.getState().threads[key]?.placeholder) void this.resolveName(key);
@@ -302,6 +325,7 @@ export class ZaloClient {
     if (!message.isSelf) throw new Error("only your own messages can be recalled");
     const { threadId, type, cliMsgId } = this.destination(message);
     await this.api.undo({ msgId: message.id, cliMsgId }, threadId, type);
+    this.recalledIds.add(message.id);
     this.store.update((s) => markRecalled(s, message.threadKey, message.id));
   }
 
