@@ -1,17 +1,34 @@
 import { Box, Text, useInput, usePaste } from "ink";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+type Draft = { chars: string[]; cursor: number };
 
 type Props = {
+  draftKey: string | null;
   active: boolean;
   enabled: boolean;
   error?: string;
   onSubmit: (text: string) => Promise<boolean>;
 };
 
-export function Composer({ active, enabled, error, onSubmit }: Props) {
+export function Composer({ draftKey, active, enabled, error, onSubmit }: Props) {
   const [chars, setChars] = useState<string[]>([]);
   const [cursor, setCursor] = useState(0);
   const [sending, setSending] = useState(false);
+  const drafts = useRef(new Map<string, Draft>());
+  const currentKey = useRef(draftKey);
+
+  useEffect(() => {
+    if (currentKey.current === draftKey) return;
+    if (currentKey.current) {
+      if (chars.length) drafts.current.set(currentKey.current, { chars, cursor });
+      else drafts.current.delete(currentKey.current);
+    }
+    const next = (draftKey && drafts.current.get(draftKey)) || { chars: [], cursor: 0 };
+    setChars(next.chars);
+    setCursor(next.cursor);
+    currentKey.current = draftKey;
+  }, [draftKey]);
 
   const insert = (text: string) => {
     const add = Array.from(text.replace(/\r\n?/g, "\n"));
@@ -26,12 +43,16 @@ export function Composer({ active, enabled, error, onSubmit }: Props) {
       if (key.return) {
         const text = chars.join("").trim();
         if (!text || !enabled) return;
+        const sentFrom = currentKey.current;
         setSending(true);
         void onSubmit(text).then((ok) => {
           setSending(false);
-          if (ok) {
+          if (!ok) return;
+          if (currentKey.current === sentFrom) {
             setChars([]);
             setCursor(0);
+          } else if (sentFrom) {
+            drafts.current.delete(sentFrom);
           }
         });
         return;

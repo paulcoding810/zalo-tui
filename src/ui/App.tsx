@@ -18,6 +18,8 @@ import { StoreContext, useStoreState } from "./useStore.ts";
 
 type Focus = "list" | "input" | "messages";
 
+const PREVIEW_DELAY_MS = 300;
+
 const PICKER = ["/-heart", "/-strong", ":>", ":o", ":-((", ":-h"];
 
 type Phase = "restoring" | "login" | "loading" | "chat" | "error";
@@ -152,14 +154,23 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     setTimeout(() => setToast((t) => (t === text ? undefined : t)), 2500);
   };
 
-  const open = (key: string) => {
+  const open = (key: string, focusInput: boolean) => {
+    setSelectedKey(key);
+    if (focusInput) setFocus("input");
+    if (key === store.getState().activeKey) return;
     store.update((s) => openThread(s, key));
     setScroll(0);
     setSelectedMsgId(null);
     setSendError(undefined);
-    setFocus("input");
     void client.loadHistory(key);
   };
+
+  const highlighted = threads[selected]?.key ?? null;
+  useEffect(() => {
+    if (!highlighted || highlighted === store.getState().activeKey) return;
+    const timer = setTimeout(() => open(highlighted, false), PREVIEW_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [highlighted]);
 
   const react = (icon: string) => {
     const target = selectedMsg;
@@ -225,7 +236,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     }
     if (key.return) {
       const t = threads[selected];
-      if (t) open(t.key);
+      if (t) open(t.key, true);
       return;
     }
     if (input === "/") return setFiltering(true);
@@ -285,7 +296,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
         </Text>
       ) : null}
       <Box display={picking ? "none" : "flex"}>
-        <Composer active={focus === "input"} enabled={!!active} error={sendError} onSubmit={submit} />
+        <Composer draftKey={state.activeKey} active={focus === "input"} enabled={!!active} error={sendError} onSubmit={submit} />
       </Box>
       <StatusBar connection={state.connection} selfName={state.selfName} focus={focus} notify={state.notify} toast={toast} />
     </Box>
