@@ -31,9 +31,12 @@ function chunk<T>(items: T[], size: number): T[][] {
   return out;
 }
 
-function closeReason(code: number, reason: string): string {
+export function closeReason(code: number, reason: string, closedByUs: boolean): string {
   if (code === CloseReason.DuplicateConnection || code === CloseReason.KickConnection) {
     return "Zalo Web opened elsewhere";
+  }
+  if (code === CloseReason.ManualClosure && !closedByUs) {
+    return "Zalo closed the connection, probably because Zalo Web or PC was opened elsewhere";
   }
   return reason ? `closed (${code}: ${reason})` : `closed (${code})`;
 }
@@ -46,6 +49,7 @@ export class ZaloClient {
   private selfId = "";
   private deleted = new Set<string>();
   private recalledIds = new Set<string>();
+  private stopping = false;
   private historyPending = new Set<ThreadType>();
   private reactionTimer: NodeJS.Timeout | null = null;
   private savedActivity = "";
@@ -166,10 +170,10 @@ export class ZaloClient {
       this.reactionTimer = setTimeout(() => this.requestReactions(), REACTION_FALLBACK_MS);
     });
     listener.on("disconnected", (code, reason) => {
-      this.store.update((s) => setConnection(s, { state: "connecting", reason: closeReason(code, reason) }));
+      this.store.update((s) => setConnection(s, { state: "connecting", reason: closeReason(code, reason, this.stopping) }));
     });
     listener.on("closed", (code, reason) => {
-      this.store.update((s) => setConnection(s, { state: "closed", reason: closeReason(code, reason) }));
+      this.store.update((s) => setConnection(s, { state: "closed", reason: closeReason(code, reason, this.stopping) }));
     });
     listener.on("error", () => {});
     listener.on("message", (m) => this.ingest([m], true));
@@ -255,6 +259,7 @@ export class ZaloClient {
   }
 
   connect(): void {
+    this.stopping = false;
     this.store.update((s) => setConnection(s, { state: "connecting" }));
     try {
       this.api.listener.start({ retryOnClose: true });
@@ -350,6 +355,7 @@ export class ZaloClient {
   }
 
   stop(): void {
+    this.stopping = true;
     if (this.reactionTimer) clearTimeout(this.reactionTimer);
     this.reactionTimer = null;
     if (this.saveTimer) clearTimeout(this.saveTimer);
