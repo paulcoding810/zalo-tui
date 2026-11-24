@@ -21,6 +21,12 @@ A terminal client for Zalo personal accounts, built on [zca-js](https://github.c
 - macOS is the main target. Notifications and opening links use `osascript` and `open`; on Linux they fall back to `notify-send` and `xdg-open`, which are untested. Windows is not supported.
 - A terminal with true mouse and focus reporting works best (Ghostty, iTerm2, WezTerm, Kitty).
 
+## Install
+
+```sh
+npm install -g zalo-tui
+```
+
 ## Install from source
 
 ```sh
@@ -85,3 +91,7 @@ pnpm test        # unit tests
 pnpm typecheck
 pnpm build       # bundle to dist/
 ```
+
+## License
+
+MIT

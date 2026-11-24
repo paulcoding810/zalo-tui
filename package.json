@@ -2,10 +2,26 @@
   "name": "zalo-tui",
   "version": "0.1.0",
   "description": "A terminal client for Zalo personal accounts, built on zca-js",
-  "private": true,
+  "keywords": [
+    "zalo",
+    "tui",
+    "terminal",
+    "chat",
+    "ink"
+  ],
+  "license": "MIT",
+  "author": "paulcoding810",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paulcoding810/zalo-tui.git"
+  },
+  "homepage": "https://github.com/paulcoding810/zalo-tui#readme",
+  "bugs": {
+    "url": "https://github.com/paulcoding810/zalo-tui/issues"
+  },
   "type": "module",
   "bin": {
-    "zalo-tui": "./bin/zalo-tui.js"
+    "zalo-tui": "bin/zalo-tui.js"
   },
   "files": [
     "bin",
@@ -21,12 +37,9 @@
   "engines": {
     "node": ">=22"
   },
-  "keywords": [
-    "zalo",
-    "tui",
-    "terminal",
-    "chat",
-    "ink"
+  "os": [
+    "darwin",
+    "linux"
   ],
   "packageManager": "pnpm@10.18.1",
   "dependencies": {
