@@ -17,7 +17,8 @@ import { Composer } from "./Composer.tsx";
 import { LoginScreen } from "./LoginScreen.tsx";
 import { MessagePane } from "./MessagePane.tsx";
 import { navStep } from "./nav.ts";
-import { onWheel } from "../terminalMouse.ts";
+import { onClick, onWheel } from "../terminalMouse.ts";
+import { hitTest } from "./hitTest.ts";
 import { StatusBar } from "./StatusBar.tsx";
 import { StoreContext, useStoreState } from "./useStore.ts";
 
@@ -167,7 +168,8 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const [scroll, setScroll] = useState(0);
   const [follow, setFollow] = useState(true);
   const followRef = useRef(true);
-  const paneInfo = useRef({ offset: 0, max: 0 });
+  const paneInfo = useRef<{ offset: number; max: number; rows: (string | null)[] }>({ offset: 0, max: 0, rows: [] });
+  const listInfo = useRef({ start: 0, filterRow: false });
   const setFollowing = (value: boolean) => {
     followRef.current = value;
     setFollow(value);
@@ -219,6 +221,36 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     }
   };
   useEffect(() => onWheel((e) => wheel.current(e.direction, e.x)), []);
+
+  const click = useRef<(x: number, y: number) => void>(() => {});
+  click.current = (x, y) => {
+    if (picking || pending || deleting || linkChoices) return;
+    const hit = hitTest(
+      {
+        sidebarWidth,
+        paneHeight,
+        listStart: listInfo.current.start,
+        listFilterRow: listInfo.current.filterRow,
+        threadCount: threads.length,
+        paneRows: paneInfo.current.rows,
+      },
+      x,
+      y,
+    );
+    if (!hit) return;
+    if (hit.kind === "chat") {
+      const t = threads[hit.index];
+      if (t) open(t.key, false);
+      setFocus("list");
+    } else if (hit.kind === "message") {
+      setFollowing(true);
+      setSelectedMsgId(hit.msgId);
+      setFocus("messages");
+    } else if (state.activeKey) {
+      setFocus("input");
+    }
+  };
+  useEffect(() => onClick((e) => click.current(e.x, e.y)), []);
 
   const highlighted = threads[selected]?.key ?? null;
   useEffect(() => {
@@ -424,6 +456,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           focused={focus === "list"}
           width={sidebarWidth}
           height={paneHeight}
+          info={listInfo}
         />
         <MessagePane
           thread={active}

@@ -11,13 +11,15 @@ type Props = {
   focused: boolean;
   width: number;
   height: number;
+  info?: { current: { start: number; filterRow: boolean } };
 };
 
-export function ChatList({ threads, selected, activeKey, unread, filter, filtering, focused, width, height }: Props) {
+export function ChatList({ threads, selected, activeKey, unread, filter, filtering, focused, width, height, info }: Props) {
   const showFilter = filtering || filter.length > 0;
   const rows = Math.max(1, height - (showFilter ? 1 : 0));
   const start = Math.min(Math.max(0, selected - Math.floor(rows / 2)), Math.max(0, threads.length - rows));
   const visible = threads.slice(start, start + rows);
+  if (info) info.current = { start, filterRow: showFilter };
   const inner = width - 4;
 
   return (

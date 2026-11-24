@@ -1,6 +1,22 @@
 export type WheelEvent = { direction: -1 | 1; x: number; y: number };
 
+export type ClickEvent = { x: number; y: number };
+
 const listeners = new Set<(event: WheelEvent) => void>();
+const clickListeners = new Set<(event: ClickEvent) => void>();
+
+export function onClick(listener: (event: ClickEvent) => void): () => void {
+  clickListeners.add(listener);
+  return () => clickListeners.delete(listener);
+}
+
+export function parseClickEvents(text: string): ClickEvent[] {
+  const events: ClickEvent[] = [];
+  for (const m of text.matchAll(/\u001b\[<(\d+);(\d+);(\d+)([Mm])/g)) {
+    if (m[4] === "M" && (Number(m[1]) & ~(4 | 8 | 16)) === 0) events.push({ x: Number(m[2]), y: Number(m[3]) });
+  }
+  return events;
+}
 
 export function onWheel(listener: (event: WheelEvent) => void): () => void {
   listeners.add(listener);
@@ -20,7 +36,9 @@ export function parseWheelEvents(text: string): WheelEvent[] {
 export function trackMouseWheel(): () => void {
   if (!process.stdout.isTTY || !process.stdin.isTTY) return () => {};
   const onData = (data: Buffer | string) => {
-    for (const event of parseWheelEvents(String(data))) for (const l of listeners) l(event);
+    const text = String(data);
+    for (const event of parseWheelEvents(text)) for (const l of listeners) l(event);
+    for (const event of parseClickEvents(text)) for (const l of clickListeners) l(event);
   };
   process.stdin.on("data", onData);
   process.stdout.write("\u001b[?1000h\u001b[?1006h");

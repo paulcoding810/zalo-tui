@@ -23,7 +23,7 @@ type Props = {
   scroll: number;
   selectedId: string | null;
   followSelection: boolean;
-  info?: { current: { offset: number; max: number } };
+  info?: { current: { offset: number; max: number; rows: (string | null)[] } };
   focused: boolean;
   width: number;
   height: number;
@@ -101,8 +101,12 @@ export function MessagePane({
     if (last >= lines.length - offset) offset = lines.length - last - 1;
     if (first < lines.length - offset - height) offset = Math.max(0, lines.length - first - height);
   }
-  if (info) info.current = { offset, max: maxScroll };
   const visible = lines.slice(Math.max(0, lines.length - height - offset), lines.length - offset);
+  if (info) {
+    const rows: (string | null)[] = Array.from({ length: height }, () => null);
+    visible.forEach((l, i) => (rows[height - visible.length + i] = l.msgId));
+    info.current = { offset, max: maxScroll, rows };
+  }
   const title = thread ? `${thread.kind === "group" ? "#" : ""}${thread.name}` : "No chat open";
 
   return (
