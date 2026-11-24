@@ -14,7 +14,7 @@ export function placePopup(
   maxHeight: number,
   minHeight = 6,
 ): PopupFrame {
-  const w = Math.max(10, Math.min(width, paneWidth - 2));
+  const w = Math.max(1, Math.min(width, paneWidth - 2));
   const full = Math.max(3, Math.min(maxHeight, rows.length + 2));
   const left = sidebarWidth + Math.max(1, paneWidth - w - 2);
   const first = selectedId ? rows.indexOf(selectedId) : -1;
@@ -54,12 +54,13 @@ export function Popup({ frame, title, children }: { frame: PopupFrame; title: st
       borderStyle="round"
       borderColor="cyan"
       backgroundColor={TERMINAL_BACKGROUND}
-      overflow="hidden"
     >
       <Box position="absolute" marginTop={-1} marginLeft={1}>
         <Text bold> {title} </Text>
       </Box>
-      {children}
+      <Box flexDirection="column" flexGrow={1} overflow="hidden">
+        {children}
+      </Box>
     </Box>
   );
 }

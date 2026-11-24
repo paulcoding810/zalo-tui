@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { visibleChoices } from "../src/ui/ChoicePopup.tsx";
 import { placePopup, popupContentAt } from "../src/ui/Popup.tsx";
+import { reactionLayout } from "../src/ui/ReactionPopup.tsx";
 
 const rows = [null, null, null, null, null, null, "m1", "m1", "m2", "m3"];
 
@@ -42,4 +43,16 @@ test("choice lists scroll so the cursor row stays visible", () => {
   assert.deepEqual(visibleChoices(frame, 9, 8), [6, 7, 8]);
   assert.deepEqual(visibleChoices(frame, 2, 1), [0, 1]);
   assert.deepEqual(visibleChoices({ ...frame, height: 3 }, 2, 1), [1]);
+});
+
+test("reaction popup sections drop out as it gets shorter", () => {
+  assert.deepEqual(reactionLayout(14), { showQuery: true, showFooter: true, listRows: 9 });
+  assert.deepEqual(reactionLayout(6), { showQuery: true, showFooter: true, listRows: 1 });
+  assert.deepEqual(reactionLayout(5), { showQuery: true, showFooter: false, listRows: 1 });
+  assert.deepEqual(reactionLayout(4), { showQuery: true, showFooter: false, listRows: 0 });
+  assert.deepEqual(reactionLayout(3), { showQuery: false, showFooter: false, listRows: 0 });
+});
+
+test("the popup never gets wider than the pane", () => {
+  assert.equal(placePopup(rows, "m2", 18, 8, 40, 14).width, 6);
 });

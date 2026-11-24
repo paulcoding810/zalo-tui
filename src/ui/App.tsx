@@ -20,7 +20,7 @@ import { MessagePane, paneLayout } from "./MessagePane.tsx";
 import { HelpPane } from "./HelpPane.tsx";
 import { listWindow, placePopup, popupContentAt } from "./Popup.tsx";
 import { ChoicePopup, choicePopupHeight, visibleChoices } from "./ChoicePopup.tsx";
-import { QUICK_CELL_WIDTH, QUICK_REACTIONS, REACTION_LIST_TOP, ReactionPopup } from "./ReactionPopup.tsx";
+import { QUICK_CELL_WIDTH, QUICK_REACTIONS, REACTION_LIST_TOP, ReactionPopup, reactionLayout } from "./ReactionPopup.tsx";
 import { navStep } from "./nav.ts";
 import { onClick, onWheel } from "../terminalMouse.ts";
 import { hitTest } from "./hitTest.ts";
@@ -269,7 +269,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
         return;
       }
       const results = searchReactions(picker.query);
-      const listRows = Math.max(1, frame.height - 2 - REACTION_LIST_TOP - 1);
+      const { listRows } = reactionLayout(frame.height);
       const index = listWindow(picker.cursor, results.length, listRows) + at.row - REACTION_LIST_TOP;
       if (at.row >= REACTION_LIST_TOP && at.row < REACTION_LIST_TOP + listRows && results[index]) react(results[index].code);
       return;
