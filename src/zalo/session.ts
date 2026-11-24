@@ -3,6 +3,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { NotifyMode } from "../notify.ts";
 import type { Activity } from "../store.ts";
+import { imageSizeFromFile } from "image-size/fromFile";
+import { statSync } from "node:fs";
 import { Zalo, type API, type Credentials, type LoginQRCallback } from "zca-js";
 
 export const stateDir = process.env.ZALO_TUI_HOME ?? join(homedir(), ".config", "zalo-tui");
@@ -65,8 +67,18 @@ export function clearCredentials(): void {
   rmSync(credentialsPath, { force: true });
 }
 
+async function imageMetadataGetter(filePath: string) {
+  try {
+    const { width, height } = await imageSizeFromFile(filePath);
+    if (!width || !height) return null;
+    return { width, height, size: statSync(filePath).size };
+  } catch {
+    return null;
+  }
+}
+
 function createZalo(): Zalo {
-  return new Zalo({ selfListen: true, checkUpdate: false, logging: false });
+  return new Zalo({ selfListen: true, checkUpdate: false, logging: false, imageMetadataGetter });
 }
 
 export function restore(credentials: Credentials): Promise<API> {

@@ -1,4 +1,6 @@
 import { CloseReason, Reactions, ThreadType, type API, type Message, type Reaction, type Undo } from "zca-js";
+import { basename } from "node:path";
+import type { AttachmentRequest } from "../attachment.ts";
 import { messageText } from "../format.ts";
 import { loadActivity, saveActivity } from "./session.ts";
 import { mutedUntil, notificationContent, shouldNotify, showNotification } from "../notify.ts";
@@ -257,6 +259,23 @@ export class ZaloClient {
     this.store.update((s) =>
       addMessages(s, [{ id: String(msgId), threadKey: key, senderName: "me", isSelf: true, ts: Date.now(), text }], false),
     );
+  }
+
+  async sendAttachment(key: string, request: AttachmentRequest): Promise<void> {
+    const { kind, id } = parseKey(key);
+    const type = kind === "group" ? ThreadType.Group : ThreadType.User;
+    const result = await this.api.sendMessage({ msg: request.caption, attachments: [request.path] }, id, type);
+    const sent = result.attachment[0]?.msgId;
+    if (sent === undefined) throw new Error("Zalo did not accept the attachment");
+    const name = basename(request.path);
+    const now = Date.now();
+    const local: ChatMessage[] = [];
+    if (result.message?.msgId !== undefined && request.kind === "file") {
+      local.push({ id: String(result.message.msgId), threadKey: key, senderName: "me", isSelf: true, ts: now - 1, text: request.caption });
+    }
+    const caption = request.kind === "photo" && request.caption ? ` ${request.caption}` : "";
+    local.push({ id: String(sent), threadKey: key, senderName: "me", isSelf: true, ts: now, text: `[${request.kind}] ${name}${caption}` });
+    this.store.update((s) => addMessages(s, local, false));
   }
 
   async react(message: ChatMessage, icon: string): Promise<void> {

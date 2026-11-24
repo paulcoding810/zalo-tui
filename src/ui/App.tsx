@@ -1,6 +1,9 @@
 import { Box, Text, useInput, useWindowSize } from "ink";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LoginQRCallbackEventType } from "zca-js";
+import { statSync } from "node:fs";
+import { basename } from "node:path";
+import { parseAttachment, type AttachmentRequest } from "../attachment.ts";
 import { renderQR, type RenderedQR } from "../qr.ts";
 import { reactionIcon } from "../format.ts";
 import { nextNotifyMode } from "../notify.ts";
@@ -23,6 +26,21 @@ const PREVIEW_DELAY_MS = 300;
 const PICKER = ["/-heart", "/-strong", ":>", ":o", ":-((", ":-h"];
 
 type Phase = "restoring" | "login" | "loading" | "chat" | "error";
+
+function isFile(path: string): boolean {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function formatSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+type PendingAttachment = { key: string; text: string; request: AttachmentRequest; size: number };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -130,6 +148,8 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const [selectedMsgId, setSelectedMsgId] = useState<string | null>(null);
   const [toast, setToast] = useState<string>();
   const [picking, setPicking] = useState(false);
+  const [pending, setPending] = useState<PendingAttachment | null>(null);
+  const resolvePending = useRef<((ok: boolean) => void) | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [filtering, setFiltering] = useState(false);
@@ -182,7 +202,47 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       .catch((e) => flash(`reaction failed: ${errorMessage(e)}`));
   };
 
+  const sendAttachmentTo = async (key: string, request: AttachmentRequest): Promise<boolean> => {
+    try {
+      await client.sendAttachment(key, request);
+      setSendError(undefined);
+      setScroll(0);
+      return true;
+    } catch (e) {
+      setSendError(`${request.kind} not sent: ${errorMessage(e)}`);
+      return false;
+    }
+  };
+
+  const sendTextTo = async (key: string, text: string): Promise<boolean> => {
+    try {
+      await client.send(key, text);
+      setSendError(undefined);
+      setScroll(0);
+      return true;
+    } catch (e) {
+      setSendError(`send failed: ${errorMessage(e)}`);
+      return false;
+    }
+  };
+
+  const finishPending = (action: "send" | "text" | "cancel") => {
+    const p = pending;
+    const resolve = resolvePending.current;
+    setPending(null);
+    resolvePending.current = null;
+    if (!p || !resolve) return;
+    if (action === "cancel") return resolve(false);
+    void (action === "send" ? sendAttachmentTo(p.key, p.request) : sendTextTo(p.key, p.text)).then(resolve);
+  };
+
   useInput((input, key) => {
+    if (pending) {
+      if (key.return) finishPending("send");
+      else if (key.escape) finishPending("cancel");
+      else if (input === "t") finishPending("text");
+      return;
+    }
     if (picking) {
       if (key.escape) return setPicking(false);
       if (input === "0") return react("");
@@ -251,16 +311,19 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   });
 
   const submit = async (text: string): Promise<boolean> => {
-    if (!state.activeKey) return false;
-    try {
-      await client.send(state.activeKey, text);
-      setSendError(undefined);
-      setScroll(0);
-      return true;
-    } catch (e) {
-      setSendError(`send failed: ${errorMessage(e)}`);
+    const key = state.activeKey;
+    if (!key) return false;
+    const parsed = parseAttachment(text, isFile);
+    if (!parsed) return sendTextTo(key, text);
+    if ("error" in parsed) {
+      setSendError(parsed.error);
       return false;
     }
+    if (!parsed.confirm) return sendAttachmentTo(key, parsed);
+    return new Promise<boolean>((resolve) => {
+      resolvePending.current = resolve;
+      setPending({ key, text, request: parsed, size: statSync(parsed.path).size });
+    });
   };
 
   return (
@@ -288,6 +351,13 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           height={paneHeight}
         />
       </Box>
+      {pending ? (
+        <Text wrap="truncate-end">
+          <Text color="cyan">Send {pending.request.kind} </Text>
+          {basename(pending.request.path)} ({formatSize(pending.size)}) to {state.threads[pending.key]?.name ?? "this chat"}?{" "}
+          <Text dimColor>Enter send · t send as text · Esc cancel</Text>
+        </Text>
+      ) : null}
       {picking ? (
         <Text>
           <Text color="cyan">React: </Text>
@@ -295,7 +365,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           <Text dimColor>0 remove · Esc cancel</Text>
         </Text>
       ) : null}
-      <Box display={picking ? "none" : "flex"}>
+      <Box display={picking || pending ? "none" : "flex"}>
         <Composer draftKey={state.activeKey} active={focus === "input"} enabled={!!active} error={sendError} onSubmit={submit} />
       </Box>
       <StatusBar connection={state.connection} selfName={state.selfName} focus={focus} notify={state.notify} toast={toast} />
