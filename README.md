@@ -92,6 +92,10 @@ pnpm typecheck
 pnpm build       # bundle to dist/
 ```
 
+### Releasing
+
+Add a section for the new version to `CHANGELOG.md`, set the same `version` in `package.json`, and push to `main`. The Release workflow checks that the two match, runs the checks, publishes to npm with provenance, and creates a GitHub release from that changelog section. It does nothing if that version is already on npm.
+
 ## License
 
 MIT
