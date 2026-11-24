@@ -19,6 +19,7 @@ import { LoginScreen } from "./LoginScreen.tsx";
 import { MessagePane } from "./MessagePane.tsx";
 import { HelpPane } from "./HelpPane.tsx";
 import { placePopup, popupContentAt } from "./Popup.tsx";
+import { ChoicePopup, choicePopupHeight } from "./ChoicePopup.tsx";
 import { QUICK_CELL_WIDTH, QUICK_REACTIONS, REACTION_LIST_TOP, ReactionPopup, reactionListWindow } from "./ReactionPopup.tsx";
 import { navStep } from "./nav.ts";
 import { onClick, onWheel } from "../terminalMouse.ts";
@@ -163,6 +164,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const [deleting, setDeleting] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [linkChoices, setLinkChoices] = useState<string[] | null>(null);
+  const [linkCursor, setLinkCursor] = useState(0);
   const [pending, setPending] = useState<PendingAttachment | null>(null);
   const resolvePending = useRef<((ok: boolean) => void) | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -214,6 +216,9 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     void client.loadHistory(key);
   };
 
+  const popupFrameFor = (width: number, height: number) =>
+    placePopup(paneInfo.current.rows, selectedMsg?.id ?? null, sidebarWidth, columns - sidebarWidth, width, height, Math.min(height, 6));
+
   const wheel = useRef<(direction: -1 | 1, x: number) => void>(() => {});
   wheel.current = (direction, x) => {
     if (x <= sidebarWidth) {
@@ -228,7 +233,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const click = useRef<(x: number, y: number) => void>(() => {});
   click.current = (x, y) => {
     if (picker) {
-      const frame = placePopup(paneInfo.current.rows, selectedMsg?.id ?? null, sidebarWidth, columns - sidebarWidth, 40, 14);
+      const frame = popupFrameFor(40, 14);
       const at = popupContentAt(frame, x, y);
       if (!at) return setPicker(null);
       if (at.row === 0) {
@@ -242,7 +247,14 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       if (at.row >= REACTION_LIST_TOP && at.row < REACTION_LIST_TOP + listRows && results[index]) react(results[index].code);
       return;
     }
-    if (pending || deleting || linkChoices || showHelp) return;
+    if (linkChoices) {
+      const at = popupContentAt(popupFrameFor(56, choicePopupHeight(linkChoices.length)), x, y);
+      if (!at) return setLinkChoices(null);
+      const url = linkChoices[at.row];
+      if (url) openLink(url);
+      return;
+    }
+    if (pending || deleting || showHelp) return;
     const hit = hitTest(
       {
         sidebarWidth,
@@ -342,7 +354,9 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     }
     if (linkChoices) {
       if (key.escape) return setLinkChoices(null);
-      const url = /^[1-9]$/.test(input) ? linkChoices[Number(input) - 1] : undefined;
+      if (key.upArrow || input === "k") return setLinkCursor((c) => Math.max(0, c - 1));
+      if (key.downArrow || input === "j") return setLinkCursor((c) => Math.min(linkChoices.length - 1, c + 1));
+      const url = key.return ? linkChoices[linkCursor] : /^[1-9]$/.test(input) ? linkChoices[Number(input) - 1] : undefined;
       if (url) openLink(url);
       return;
     }
@@ -404,7 +418,10 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
         const links = messageLinks(selectedMsg);
         if (links.length === 0) flash("nothing to open in this message");
         else if (links.length === 1) openLink(links[0]!);
-        else setLinkChoices(links.slice(0, 9));
+        else {
+          setLinkCursor(0);
+          setLinkChoices(links.slice(0, 9));
+        }
       }
       return;
     }
@@ -467,8 +484,9 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     });
   };
 
+  const linkFrame = linkChoices ? popupFrameFor(56, choicePopupHeight(linkChoices.length)) : null;
   const reactionFrame = picker
-    ? placePopup(paneInfo.current.rows, selectedMsg?.id ?? null, sidebarWidth, columns - sidebarWidth, 40, 14)
+    ? popupFrameFor(40, 14)
     : null;
 
   return (
@@ -503,6 +521,15 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
             height={paneHeight}
           />
         )}
+        {linkChoices && linkFrame ? (
+          <ChoicePopup
+            frame={linkFrame}
+            title="Open link"
+            cursor={linkCursor}
+            choices={linkChoices.map((url, i) => ({ hint: String(i + 1), label: url.replace(/^https?:\/\/(www\.)?/, "") }))}
+            footer="↑↓ Enter · 1-9 · Esc"
+          />
+        ) : null}
         {picker && reactionFrame ? (
           <ReactionPopup frame={reactionFrame} query={picker.query} cursor={picker.cursor} results={searchReactions(picker.query)} />
         ) : null}
@@ -514,20 +541,13 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           <Text dimColor>Enter send · t send as text · Esc cancel</Text>
         </Text>
       ) : null}
-      {linkChoices ? (
-        <Text wrap="truncate-end">
-          <Text color="cyan">Open: </Text>
-          {linkChoices.map((url, i) => `${i + 1} ${url.replace(/^https?:\/\/(www\.)?/, "")}  `).join("")}
-          <Text dimColor>Esc cancel</Text>
-        </Text>
-      ) : null}
       {deleting && selectedMsg ? (
         <Text wrap="truncate-end">
           <Text color="red">Remove this message? </Text>
           {selectedMsg.isSelf ? "r recall for everyone · " : ""}d delete for me <Text dimColor>· Esc cancel</Text>
         </Text>
       ) : null}
-      <Box display={pending || deleting || linkChoices ? "none" : "flex"}>
+      <Box display={pending || deleting ? "none" : "flex"}>
         <Composer draftKey={state.activeKey} active={focus === "input" && !showHelp} enabled={!!active} error={sendError} onSubmit={submit} />
       </Box>
       <StatusBar connection={state.connection} selfName={state.selfName} focus={focus} notify={state.notify} toast={toast} />
