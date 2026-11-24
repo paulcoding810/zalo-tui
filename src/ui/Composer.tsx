@@ -85,7 +85,7 @@ export function Composer({ draftKey, active, enabled, error, onSubmit }: Props) 
     <Box>
       <Text color={active ? "cyan" : "gray"}>{"> "}</Text>
       {chars.length === 0 && !active ? (
-        <Text dimColor>{enabled ? "Tab to type a message" : "Open a chat to type"}</Text>
+        <Text dimColor>{enabled ? "i or Enter to type a message" : "Open a chat to type"}</Text>
       ) : (
         <Text wrap="truncate-start">
           {before}

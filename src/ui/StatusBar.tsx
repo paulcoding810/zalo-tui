@@ -18,10 +18,10 @@ export function StatusBar({ connection, selfName, focus, notify, toast }: Props)
   const label = connection.state === "closed" ? `disconnected: ${connection.reason ?? ""} · r reconnect` : connection.state;
   const hints =
     focus === "list"
-      ? "j/k move · Enter open · / filter · i compose · n notify · Ctrl+C quit"
+      ? "j/k move · l/Tab messages · Enter/i compose · / filter · n notify · Ctrl+C quit"
       : focus === "input"
-        ? "Enter send · Tab select msg · Esc chats · PgUp/PgDn scroll · Ctrl+C quit"
-        : "j/k select · e react · d delete · o open · i compose · Tab chats · Ctrl+C quit";
+        ? "Enter send · Esc back · PgUp/PgDn scroll · Ctrl+C quit"
+        : "j/k select · h/Tab chats · e react · d delete · o open · i compose · Ctrl+C quit";
   return (
     <Text wrap="truncate-end">
       <Text color={COLORS[connection.state]}>● {label}</Text>

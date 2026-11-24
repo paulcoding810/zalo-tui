@@ -144,7 +144,12 @@ function ErrorScreen({ message }: { message: string }) {
 export function ChatScreen({ store, client }: { store: Store; client: ZaloClient }) {
   const state = useStoreState();
   const { columns, rows } = useWindowSize();
-  const [focus, setFocus] = useState<Focus>("list");
+  const [focus, setFocusState] = useState<Focus>("list");
+  const [returnFocus, setReturnFocus] = useState<"list" | "messages">("list");
+  const setFocus = (next: Focus) => {
+    if (next === "input" && focus !== "input") setReturnFocus(focus === "messages" ? "messages" : "list");
+    setFocusState(next);
+  };
   const [selectedMsgId, setSelectedMsgId] = useState<string | null>(null);
   const [toast, setToast] = useState<string>();
   const [picking, setPicking] = useState(false);
@@ -269,12 +274,11 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     if (key.pageUp) return setScroll((s) => s + pageSize);
     if (key.pageDown) return setScroll((s) => Math.max(0, s - pageSize));
     if (key.tab) {
-      if (!state.activeKey) return setFocus("list");
-      setFocus(focus === "list" ? "input" : focus === "input" ? "messages" : "list");
+      setFocus(focus === "list" && state.activeKey ? "messages" : "list");
       return;
     }
     if (focus === "input") {
-      if (key.escape) setFocus("list");
+      if (key.escape) setFocus(returnFocus);
       return;
     }
     const half = Math.max(1, Math.floor(paneHeight / 2));
@@ -282,7 +286,8 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       const i = msgIndex === -1 ? messages.length - 1 : msgIndex;
       const next = navStep(input, key, i, messages.length, half);
       if (next !== null) return setSelectedMsgId(messages[next]?.id ?? null);
-      if (key.escape || key.return || input === "i") return setFocus("input");
+      if (key.return || input === "i") return setFocus("input");
+      if (key.escape || input === "h") return setFocus("list");
       if (input === "e" && selectedMsg) return setPicking(true);
       if (input === "d" && selectedMsg && !selectedMsg.recalled) return setDeleting(true);
       if (input === "o") {
@@ -306,9 +311,9 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     }
     const next = navStep(input, key, selected, threads.length, half);
     if (next !== null) return setSelectedKey(threads[next]?.key ?? null);
-    if (input === "i") {
-      if (state.activeKey) setFocus("input");
-      else flash("open a chat first");
+    if (input === "i" || input === "l") {
+      if (!state.activeKey) flash("open a chat first");
+      else setFocus(input === "i" ? "input" : "messages");
       return;
     }
     if (key.return) {
