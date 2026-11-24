@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatTime, messageText, wrapText } from "../src/format.ts";
+import { attachmentUrl, formatTime, messageText, wrapText } from "../src/format.ts";
 
 test("plain text is returned as is", () => {
   assert.equal(messageText({ msgType: "webchat", content: "xin chào" }), "xin chào");
@@ -33,4 +33,12 @@ test("wrapText splits by width and keeps newlines", () => {
   assert.deepEqual(wrapText("Việt Nam", 4), ["Việt", "Nam"]);
   assert.deepEqual(wrapText("tin nhắn rất dài", 9), ["tin nhắn", "rất dài"]);
   assert.deepEqual(wrapText("abcdefghij xy", 4), ["abcd", "efgh", "ij", "xy"]);
+});
+
+test("attachment url prefers the main link and falls back to the preview", () => {
+  assert.equal(attachmentUrl({ href: "https://x/full.jpg", thumb: "https://x/t.jpg" }), "https://x/full.jpg");
+  assert.equal(attachmentUrl({ href: "", thumb: "https://x/t.jpg" }), "https://x/t.jpg");
+  assert.equal(attachmentUrl({ href: "zalo://internal", thumb: "" }), undefined);
+  assert.equal(attachmentUrl("plain text https://x"), undefined);
+  assert.equal(attachmentUrl(null), undefined);
 });

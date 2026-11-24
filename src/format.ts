@@ -30,6 +30,15 @@ export function messageText(data: { msgType?: string; content: Content }): strin
   return title ? `[${label}] ${title}` : `[${label}]`;
 }
 
+function webUrl(value: unknown): string | undefined {
+  return typeof value === "string" && /^https?:\/\//.test(value.trim()) ? value.trim() : undefined;
+}
+
+export function attachmentUrl(content: Content): string | undefined {
+  if (!content || typeof content !== "object") return undefined;
+  return webUrl(content.href) ?? webUrl(content.thumb);
+}
+
 const REACTION_ICONS: Record<string, string> = {
   "/-heart": "❤",
   "/-strong": "👍",

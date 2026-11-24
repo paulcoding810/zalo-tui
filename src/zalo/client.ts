@@ -1,7 +1,7 @@
 import { CloseReason, Reactions, ThreadType, type API, type Message, type Reaction, type Undo } from "zca-js";
 import { basename } from "node:path";
 import type { AttachmentRequest } from "../attachment.ts";
-import { messageText } from "../format.ts";
+import { attachmentUrl, messageText } from "../format.ts";
 import { loadActivity, saveActivity } from "./session.ts";
 import { mutedUntil, notificationContent, shouldNotify, showNotification } from "../notify.ts";
 import {
@@ -55,8 +55,6 @@ export class ZaloClient {
 
   private toChatMessage(m: Message): ChatMessage {
     const kind = m.type === ThreadType.Group ? "group" : "user";
-    const content = m.data.content;
-    const href = typeof content === "object" && content && typeof content.href === "string" ? content.href : "";
     const mentions = m.type === ThreadType.Group ? (m.data.mentions ?? []) : [];
     return {
       id: String(m.data.msgId),
@@ -68,7 +66,7 @@ export class ZaloClient {
       ts: Number(m.data.ts) || Date.now(),
       text: messageText(m.data),
       mentionsMe: mentions.some((x) => x.uid === this.selfId || x.uid === "-1" || x.type === 1),
-      url: /^https?:\/\//.test(href) ? href : undefined,
+      url: attachmentUrl(m.data.content),
     };
   }
 
