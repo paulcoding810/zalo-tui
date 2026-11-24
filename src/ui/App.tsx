@@ -5,7 +5,8 @@ import { statSync } from "node:fs";
 import { basename } from "node:path";
 import { parseAttachment, type AttachmentRequest } from "../attachment.ts";
 import { renderQR, type RenderedQR } from "../qr.ts";
-import { messageLinks, reactionIcon } from "../format.ts";
+import { messageLinks } from "../format.ts";
+import { reactionIcon, searchReactions } from "../reactions.ts";
 import { nextNotifyMode } from "../notify.ts";
 import { openUrl } from "../open.ts";
 import { openThread, sortedThreads, type Store } from "../store.ts";
@@ -155,6 +156,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const [selectedMsgId, setSelectedMsgId] = useState<string | null>(null);
   const [toast, setToast] = useState<string>();
   const [picking, setPicking] = useState(false);
+  const [moreQuery, setMoreQuery] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [linkChoices, setLinkChoices] = useState<string[] | null>(null);
   const [pending, setPending] = useState<PendingAttachment | null>(null);
@@ -228,6 +230,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const react = (icon: string) => {
     const target = selectedMsg;
     setPicking(false);
+    setMoreQuery(null);
     if (!target) return;
     client
       .react(target, icon)
@@ -302,8 +305,25 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       else if (input === "t") finishPending("text");
       return;
     }
+    if (picking && moreQuery !== null) {
+      const results = searchReactions(moreQuery);
+      if (key.escape) return setMoreQuery(null);
+      if (key.return) {
+        if (results[0]) react(results[0].code);
+        return;
+      }
+      if (key.backspace || key.delete) return setMoreQuery((q) => (q ?? "").slice(0, -1));
+      if (/^[1-9]$/.test(input)) {
+        const choice = results[Number(input) - 1];
+        if (choice) react(choice.code);
+        return;
+      }
+      if (input && /^[a-z ]+$/i.test(input) && !key.ctrl && !key.meta) setMoreQuery((q) => (q ?? "") + input.toLowerCase());
+      return;
+    }
     if (picking) {
       if (key.escape) return setPicking(false);
+      if (input === "m") return setMoreQuery("");
       if (input === "0") return react("");
       const icon = PICKER[Number(input) - 1];
       if (/^[1-9]$/.test(input) && icon) react(icon);
@@ -439,10 +459,23 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
         </Text>
       ) : null}
       {picking ? (
-        <Text>
+        <Text wrap="truncate-end">
           <Text color="cyan">React: </Text>
-          {PICKER.map((icon, i) => `${i + 1} ${reactionIcon(icon)}  `).join("")}
-          <Text dimColor>0 remove · Esc cancel</Text>
+          {moreQuery === null ? (
+            <>
+              {PICKER.map((icon, i) => `${i + 1} ${reactionIcon(icon)}  `).join("")}
+              <Text dimColor>m more · 0 remove · Esc cancel</Text>
+            </>
+          ) : (
+            <>
+              <Text color="yellow">{moreQuery}▏ </Text>
+              {searchReactions(moreQuery)
+                .slice(0, 9)
+                .map((r, i) => `${i + 1} ${r.emoji} ${r.name}  `)
+                .join("")}
+              <Text dimColor>· type to filter · Enter first · Esc back</Text>
+            </>
+          )}
         </Text>
       ) : null}
       <Box display={picking || pending || deleting || linkChoices ? "none" : "flex"}>

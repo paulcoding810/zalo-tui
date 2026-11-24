@@ -1,5 +1,6 @@
 import { Box, Text } from "ink";
-import { formatTime, hyperlink, linkSegments, reactionIcon, textLinkRanges, wrapWithOffsets, type LinkRange, type Segment } from "../format.ts";
+import { reactionIcon } from "../reactions.ts";
+import { formatTime, hyperlink, linkSegments, textLinkRanges, wrapWithOffsets, type LinkRange, type Segment } from "../format.ts";
 import { reactionKey, reactionSummary, type ChatMessage, type ReactionEntry, type Thread } from "../store.ts";
 
 type Line = { key: string; msgId: string; time: string; sender: string; isSelf: boolean; indent: number; segments: Segment[]; dim: boolean };

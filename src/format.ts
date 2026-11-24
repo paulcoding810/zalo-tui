@@ -73,29 +73,6 @@ export function messageLinks(message: { url?: string; text: string; recalled?: b
   return [...new Set(urls)];
 }
 
-const REACTION_ICONS: Record<string, string> = {
-  "/-heart": "❤",
-  "/-strong": "👍",
-  ":>": "😆",
-  ":o": "😮",
-  ":-((": "😭",
-  ":-h": "😡",
-  ":-*": "😘",
-  ":')": "😂",
-  "/-weak": "👎",
-  "/-rose": "🌹",
-  "/-break": "💔",
-  "/-ok": "👌",
-  "_()_": "🙏",
-  "/-thanks": "🙏",
-  "/-v": "✌",
-  ":handclap": "👏",
-};
-
-export function reactionIcon(code: string): string {
-  return REACTION_ICONS[code] ?? code;
-}
-
 function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
