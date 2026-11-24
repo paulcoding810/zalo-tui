@@ -25,7 +25,8 @@
   },
   "files": [
     "bin",
-    "dist"
+    "dist",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "start": "tsx src/index.tsx",
