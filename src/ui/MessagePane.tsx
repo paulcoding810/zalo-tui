@@ -28,7 +28,7 @@ export function buildLines(
     const summary = reactionSummary(reactions[reactionKey(m.threadKey, m.id)])
       .map((r) => `${reactionIcon(r.icon)}${r.count > 1 ? r.count : ""}`)
       .join(" ");
-    const text = m.recalled ? "[recalled]" : m.url ? `${m.text} ↗` : m.text;
+    const text = m.recalled ? "[recalled]" : m.url && !m.text.includes(m.url) ? `${m.text} ↗` : m.text;
     const body = summary ? `${text}  ${summary}` : text;
     const parts = wrapText(body, Math.max(10, width - prefixLength));
     parts.forEach((text, i) =>

@@ -39,6 +39,34 @@ export function attachmentUrl(content: Content): string | undefined {
   return webUrl(content.href) ?? webUrl(content.thumb);
 }
 
+export type LinkMatch = { start: number; end: number; url: string };
+
+function trimLink(raw: string): string {
+  let link = raw.replace(/[.,;:!?'"]+$/, "");
+  while (link.endsWith(")") && (link.match(/\(/g)?.length ?? 0) < (link.match(/\)/g)?.length ?? 0)) {
+    link = link.slice(0, -1).replace(/[.,;:!?'"]+$/, "");
+  }
+  return link;
+}
+
+export function findLinks(text: string): LinkMatch[] {
+  const out: LinkMatch[] = [];
+  for (const m of text.matchAll(/\b(?:https?:\/\/|www\.)[^\s<>"]+/gi)) {
+    const raw = trimLink(m[0]);
+    if (raw.length < 5) continue;
+    const start = m.index ?? 0;
+    const url = /^www\./i.test(raw) ? `https://${raw}` : raw;
+    out.push({ start, end: start + raw.length, url });
+  }
+  return out;
+}
+
+export function messageLinks(message: { url?: string; text: string; recalled?: boolean }): string[] {
+  if (message.recalled) return [];
+  const urls = [message.url, ...findLinks(message.text).map((l) => l.url)].filter((u): u is string => !!u);
+  return [...new Set(urls)];
+}
+
 const REACTION_ICONS: Record<string, string> = {
   "/-heart": "❤",
   "/-strong": "👍",

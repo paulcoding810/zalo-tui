@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { attachmentUrl, formatTime, messageText, wrapText } from "../src/format.ts";
+import { attachmentUrl, findLinks, formatTime, messageLinks, messageText, wrapText } from "../src/format.ts";
 
 test("plain text is returned as is", () => {
   assert.equal(messageText({ msgType: "webchat", content: "xin chào" }), "xin chào");
@@ -41,4 +41,18 @@ test("attachment url prefers the main link and falls back to the preview", () =>
   assert.equal(attachmentUrl({ href: "zalo://internal", thumb: "" }), undefined);
   assert.equal(attachmentUrl("plain text https://x"), undefined);
   assert.equal(attachmentUrl(null), undefined);
+});
+
+test("links are found in text and trailing punctuation is dropped", () => {
+  assert.deepEqual(findLinks("xem https://example.com/a?b=1, nhé"), [{ start: 4, end: 29, url: "https://example.com/a?b=1" }]);
+  assert.deepEqual(findLinks("(see https://en.wikipedia.org/wiki/Foo_(bar))").map((l) => l.url), ["https://en.wikipedia.org/wiki/Foo_(bar)"]);
+  assert.deepEqual(findLinks("www.zalo.me và http://a.vn/x.").map((l) => l.url), ["https://www.zalo.me", "http://a.vn/x"]);
+  assert.deepEqual(findLinks("không có link, email a@b.com"), []);
+});
+
+test("message links combine the attachment link and text links without duplicates", () => {
+  assert.deepEqual(messageLinks({ url: "https://x/p.jpg", text: "[photo]" }), ["https://x/p.jpg"]);
+  assert.deepEqual(messageLinks({ url: "https://d.vn", text: "[link] Docs https://d.vn" }), ["https://d.vn"]);
+  assert.deepEqual(messageLinks({ text: "a https://a.vn b https://b.vn" }), ["https://a.vn", "https://b.vn"]);
+  assert.deepEqual(messageLinks({ text: "https://a.vn", recalled: true }), []);
 });
