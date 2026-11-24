@@ -31,6 +31,10 @@ export function placePopup(
   return { left, top: selectedBottom + 1, width: w, height: Math.min(full, below) };
 }
 
+export function listWindow(cursor: number, total: number, rows: number): number {
+  return Math.min(Math.max(0, cursor - rows + 1), Math.max(0, total - rows));
+}
+
 export function popupContentAt(frame: PopupFrame, x: number, y: number): { col: number; row: number } | null {
   const screenLeft = frame.left + 1;
   const screenTop = frame.top + 1;

@@ -18,9 +18,9 @@ import { Composer } from "./Composer.tsx";
 import { LoginScreen } from "./LoginScreen.tsx";
 import { MessagePane, paneLayout } from "./MessagePane.tsx";
 import { HelpPane } from "./HelpPane.tsx";
-import { placePopup, popupContentAt } from "./Popup.tsx";
-import { ChoicePopup, choicePopupHeight } from "./ChoicePopup.tsx";
-import { QUICK_CELL_WIDTH, QUICK_REACTIONS, REACTION_LIST_TOP, ReactionPopup, reactionListWindow } from "./ReactionPopup.tsx";
+import { listWindow, placePopup, popupContentAt } from "./Popup.tsx";
+import { ChoicePopup, choicePopupHeight, visibleChoices } from "./ChoicePopup.tsx";
+import { QUICK_CELL_WIDTH, QUICK_REACTIONS, REACTION_LIST_TOP, ReactionPopup } from "./ReactionPopup.tsx";
 import { navStep } from "./nav.ts";
 import { onClick, onWheel } from "../terminalMouse.ts";
 import { hitTest } from "./hitTest.ts";
@@ -270,22 +270,26 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       }
       const results = searchReactions(picker.query);
       const listRows = Math.max(1, frame.height - 2 - REACTION_LIST_TOP - 1);
-      const index = reactionListWindow(picker.cursor, results.length, listRows) + at.row - REACTION_LIST_TOP;
+      const index = listWindow(picker.cursor, results.length, listRows) + at.row - REACTION_LIST_TOP;
       if (at.row >= REACTION_LIST_TOP && at.row < REACTION_LIST_TOP + listRows && results[index]) react(results[index].code);
       return;
     }
     if (linkChoices) {
-      const at = popupContentAt(popupFrameFor(56, choicePopupHeight(linkChoices.length)), x, y);
+      const frame = popupFrameFor(56, choicePopupHeight(linkChoices.length));
+      const at = popupContentAt(frame, x, y);
       if (!at) return setLinkChoices(null);
-      const url = linkChoices[at.row];
+      const index = visibleChoices(frame, linkChoices.length, linkCursor)[at.row];
+      const url = index === undefined ? undefined : linkChoices[index];
       if (url) openLink(url);
       return;
     }
     if (deleting) {
       const options = deleteOptions(selectedMsg?.isSelf ?? false);
-      const at = popupContentAt(popupFrameFor(34, choicePopupHeight(options.length)), x, y);
+      const frame = popupFrameFor(34, choicePopupHeight(options.length));
+      const at = popupContentAt(frame, x, y);
       if (!at) return setDeleting(false);
-      const option = options[at.row];
+      const index = visibleChoices(frame, options.length, deleteCursor)[at.row];
+      const option = index === undefined ? undefined : options[index];
       if (option) removeSelected(option.mode);
       return;
     }

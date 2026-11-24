@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { visibleChoices } from "../src/ui/ChoicePopup.tsx";
 import { placePopup, popupContentAt } from "../src/ui/Popup.tsx";
 
 const rows = [null, null, null, null, null, null, "m1", "m1", "m2", "m3"];
@@ -32,4 +33,13 @@ test("clicks map to content cells inside the frame and null outside", () => {
   assert.deepEqual(popupContentAt(frame, 50, 8), { col: 8, row: 3 });
   assert.equal(popupContentAt(frame, 39, 5), null);
   assert.equal(popupContentAt(frame, 42, 10), null);
+});
+
+test("choice lists scroll so the cursor row stays visible", () => {
+  const frame = { left: 0, top: 0, width: 30, height: 6 };
+  assert.deepEqual(visibleChoices(frame, 9, 0), [0, 1, 2]);
+  assert.deepEqual(visibleChoices(frame, 9, 4), [2, 3, 4]);
+  assert.deepEqual(visibleChoices(frame, 9, 8), [6, 7, 8]);
+  assert.deepEqual(visibleChoices(frame, 2, 1), [0, 1]);
+  assert.deepEqual(visibleChoices({ ...frame, height: 3 }, 2, 1), [1]);
 });

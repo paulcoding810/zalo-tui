@@ -1,14 +1,10 @@
 import { Box, Text } from "ink";
 import { reactionIcon, type ReactionOption } from "../reactions.ts";
-import { Popup, type PopupFrame } from "./Popup.tsx";
+import { listWindow, Popup, type PopupFrame } from "./Popup.tsx";
 
 export const QUICK_REACTIONS = ["/-heart", "/-strong", ":>", ":o", ":-((", ":-h"];
 export const QUICK_CELL_WIDTH = 6;
 export const REACTION_LIST_TOP = 2;
-
-export function reactionListWindow(cursor: number, total: number, rows: number): number {
-  return Math.min(Math.max(0, cursor - rows + 1), Math.max(0, total - rows));
-}
 
 export function ReactionPopup({
   frame,
@@ -22,7 +18,7 @@ export function ReactionPopup({
   results: ReactionOption[];
 }) {
   const listRows = Math.max(1, frame.height - 2 - REACTION_LIST_TOP - 1);
-  const start = reactionListWindow(cursor, results.length, listRows);
+  const start = listWindow(cursor, results.length, listRows);
   const visible = results.slice(start, start + listRows);
   return (
     <Popup frame={frame} title="React">
