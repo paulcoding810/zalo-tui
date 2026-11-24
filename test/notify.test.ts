@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mutedUntil, nextNotifyMode, notificationContent, shouldNotify } from "../src/notify.ts";
+import { mutedUntil, nextNotifyMode, notificationContent, notifySkipReason, shouldNotify } from "../src/notify.ts";
 import { initialState, openThread, threadKey, upsertThreads, type ChatMessage, type State } from "../src/store.ts";
 
 const DM = threadKey("user", "1");
@@ -51,4 +51,12 @@ test("modes cycle", () => {
   assert.equal(nextNotifyMode("full"), "sender");
   assert.equal(nextNotifyMode("sender"), "off");
   assert.equal(nextNotifyMode("off"), "full");
+});
+
+test("the open chat notifies only while the terminal is not focused", () => {
+  const open = openThread(state(), DM);
+  assert.equal(shouldNotify(msg(DM), open, new Map()), false);
+  assert.equal(shouldNotify(msg(DM), { ...open, terminalFocused: false }, new Map()), true);
+  assert.equal(notifySkipReason(msg(DM), open, new Map()), "chat open and terminal focused");
+  assert.equal(notifySkipReason(msg(G), state(), new Map()), "group message without mention");
 });

@@ -15,16 +15,27 @@ export function mutedUntil(entry: MuteEntry): number {
   return entry.duration === -1 ? Infinity : (entry.startTime + entry.duration) * 1000;
 }
 
+export function notifySkipReason(
+  m: ChatMessage,
+  state: State,
+  muted: Map<string, number>,
+  now: number = Date.now(),
+): string | null {
+  if (state.notify === "off") return "notifications off";
+  if (m.isSelf) return "own message";
+  if (m.threadKey === state.activeKey && state.terminalFocused) return "chat open and terminal focused";
+  if ((muted.get(m.threadKey) ?? 0) > now) return "chat muted";
+  if (state.threads[m.threadKey]?.kind === "group" && !m.mentionsMe) return "group message without mention";
+  return null;
+}
+
 export function shouldNotify(
   m: ChatMessage,
   state: State,
   muted: Map<string, number>,
   now: number = Date.now(),
 ): boolean {
-  if (state.notify === "off" || m.isSelf) return false;
-  if (m.threadKey === state.activeKey) return false;
-  if ((muted.get(m.threadKey) ?? 0) > now) return false;
-  return state.threads[m.threadKey]?.kind === "group" ? !!m.mentionsMe : true;
+  return notifySkipReason(m, state, muted, now) === null;
 }
 
 export function notificationContent(m: ChatMessage, state: State): { title: string; body: string } {

@@ -3,7 +3,8 @@ import { basename } from "node:path";
 import type { AttachmentRequest } from "../attachment.ts";
 import { attachmentUrl, cleanText, messageText } from "../format.ts";
 import { loadActivity, saveActivity } from "./session.ts";
-import { mutedUntil, notificationContent, shouldNotify, showNotification } from "../notify.ts";
+import { mutedUntil, notificationContent, notifySkipReason, showNotification } from "../notify.ts";
+import { debugLog } from "../debug.ts";
 import {
   activitySnapshot,
   addMessages,
@@ -154,8 +155,12 @@ export class ZaloClient {
     const state = this.store.getState();
     const now = Date.now();
     for (const m of messages) {
-      if (!shouldNotify(m, state, this.muted, now)) continue;
-      if (now - (this.lastNotified.get(m.threadKey) ?? 0) < 5000) continue;
+      const kind = state.threads[m.threadKey]?.kind ?? "unknown";
+      const skip =
+        notifySkipReason(m, state, this.muted, now) ??
+        (now - (this.lastNotified.get(m.threadKey) ?? 0) < 5000 ? "throttled" : null);
+      debugLog(`notify ${kind} ${skip ? `skipped: ${skip}` : "shown"} (terminal ${state.terminalFocused ? "focused" : "unfocused"})`);
+      if (skip) continue;
       this.lastNotified.set(m.threadKey, now);
       const { title, body } = notificationContent(m, state);
       showNotification(title, body);

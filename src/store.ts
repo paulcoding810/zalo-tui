@@ -43,6 +43,7 @@ export type State = {
   activeKey: string | null;
   connection: Connection;
   notify: NotifyMode;
+  terminalFocused: boolean;
 };
 
 export function threadKey(kind: ThreadKind, id: string): string {
@@ -65,6 +66,7 @@ export function initialState(): State {
     activeKey: null,
     connection: { state: "idle" },
     notify: "full",
+    terminalFocused: true,
   };
 }
 
