@@ -18,6 +18,8 @@ import { Composer } from "./Composer.tsx";
 import { LoginScreen } from "./LoginScreen.tsx";
 import { MessagePane } from "./MessagePane.tsx";
 import { HelpPane } from "./HelpPane.tsx";
+import { placePopup, popupContentAt } from "./Popup.tsx";
+import { QUICK_CELL_WIDTH, QUICK_REACTIONS, REACTION_LIST_TOP, ReactionPopup, reactionListWindow } from "./ReactionPopup.tsx";
 import { navStep } from "./nav.ts";
 import { onClick, onWheel } from "../terminalMouse.ts";
 import { hitTest } from "./hitTest.ts";
@@ -29,7 +31,6 @@ type Focus = "list" | "input" | "messages";
 const PREVIEW_DELAY_MS = 300;
 const WHEEL_LINES = 3;
 
-const PICKER = ["/-heart", "/-strong", ":>", ":o", ":-((", ":-h"];
 
 type Phase = "restoring" | "login" | "loading" | "chat" | "error";
 
@@ -158,8 +159,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   };
   const [selectedMsgId, setSelectedMsgId] = useState<string | null>(null);
   const [toast, setToast] = useState<string>();
-  const [picking, setPicking] = useState(false);
-  const [moreQuery, setMoreQuery] = useState<string | null>(null);
+  const [picker, setPicker] = useState<{ query: string; cursor: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [linkChoices, setLinkChoices] = useState<string[] | null>(null);
@@ -227,7 +227,22 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
 
   const click = useRef<(x: number, y: number) => void>(() => {});
   click.current = (x, y) => {
-    if (picking || pending || deleting || linkChoices || showHelp) return;
+    if (picker) {
+      const frame = placePopup(paneInfo.current.rows, selectedMsg?.id ?? null, sidebarWidth, columns - sidebarWidth, 40, 14);
+      const at = popupContentAt(frame, x, y);
+      if (!at) return setPicker(null);
+      if (at.row === 0) {
+        const quick = QUICK_REACTIONS[Math.floor(at.col / QUICK_CELL_WIDTH)];
+        if (quick) react(quick);
+        return;
+      }
+      const results = searchReactions(picker.query);
+      const listRows = Math.max(1, frame.height - 2 - REACTION_LIST_TOP - 1);
+      const index = reactionListWindow(picker.cursor, results.length, listRows) + at.row - REACTION_LIST_TOP;
+      if (at.row >= REACTION_LIST_TOP && at.row < REACTION_LIST_TOP + listRows && results[index]) react(results[index].code);
+      return;
+    }
+    if (pending || deleting || linkChoices || showHelp) return;
     const hit = hitTest(
       {
         sidebarWidth,
@@ -264,8 +279,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
 
   const react = (icon: string) => {
     const target = selectedMsg;
-    setPicking(false);
-    setMoreQuery(null);
+    setPicker(null);
     if (!target) return;
     client
       .react(target, icon)
@@ -344,28 +358,23 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       else if (input === "t") finishPending("text");
       return;
     }
-    if (picking && moreQuery !== null) {
-      const results = searchReactions(moreQuery);
-      if (key.escape) return setMoreQuery(null);
+    if (picker) {
+      const results = searchReactions(picker.query);
+      if (key.escape) return setPicker(null);
       if (key.return) {
-        if (results[0]) react(results[0].code);
-        return;
-      }
-      if (key.backspace || key.delete) return setMoreQuery((q) => (q ?? "").slice(0, -1));
-      if (/^[1-9]$/.test(input)) {
-        const choice = results[Number(input) - 1];
+        const choice = results[picker.cursor];
         if (choice) react(choice.code);
         return;
       }
-      if (input && /^[a-z ]+$/i.test(input) && !key.ctrl && !key.meta) setMoreQuery((q) => (q ?? "") + input.toLowerCase());
-      return;
-    }
-    if (picking) {
-      if (key.escape) return setPicking(false);
-      if (input === "m") return setMoreQuery("");
+      if (key.upArrow || key.downArrow) {
+        const cursor = Math.min(Math.max(0, picker.cursor + (key.upArrow ? -1 : 1)), Math.max(0, results.length - 1));
+        return setPicker({ ...picker, cursor });
+      }
+      if (key.backspace || key.delete) return setPicker({ query: picker.query.slice(0, -1), cursor: 0 });
       if (input === "0") return react("");
-      const icon = PICKER[Number(input) - 1];
-      if (/^[1-9]$/.test(input) && icon) react(icon);
+      const quick = /^[1-6]$/.test(input) ? QUICK_REACTIONS[Number(input) - 1] : undefined;
+      if (quick) return react(quick);
+      if (input && /^[a-z ]+$/i.test(input) && !key.ctrl && !key.meta) setPicker({ query: picker.query + input.toLowerCase(), cursor: 0 });
       return;
     }
     if (key.pageUp) return scrollBy(pageSize);
@@ -389,7 +398,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       if (key.return || input === "i") return setFocus("input");
       if (key.escape || input === "h") return setFocus("list");
       if (input === "?") return setShowHelp(true);
-      if (input === "e" && selectedMsg) return setPicking(true);
+      if (input === "e" && selectedMsg) return setPicker({ query: "", cursor: 0 });
       if (input === "d" && selectedMsg && !selectedMsg.recalled) return setDeleting(true);
       if (input === "o" && selectedMsg) {
         const links = messageLinks(selectedMsg);
@@ -458,6 +467,10 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     });
   };
 
+  const reactionFrame = picker
+    ? placePopup(paneInfo.current.rows, selectedMsg?.id ?? null, sidebarWidth, columns - sidebarWidth, 40, 14)
+    : null;
+
   return (
     <Box flexDirection="column" width={columns} height={rows}>
       <Box>
@@ -490,6 +503,9 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
             height={paneHeight}
           />
         )}
+        {picker && reactionFrame ? (
+          <ReactionPopup frame={reactionFrame} query={picker.query} cursor={picker.cursor} results={searchReactions(picker.query)} />
+        ) : null}
       </Box>
       {pending ? (
         <Text wrap="truncate-end">
@@ -511,27 +527,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           {selectedMsg.isSelf ? "r recall for everyone · " : ""}d delete for me <Text dimColor>· Esc cancel</Text>
         </Text>
       ) : null}
-      {picking ? (
-        <Text wrap="truncate-end">
-          <Text color="cyan">React: </Text>
-          {moreQuery === null ? (
-            <>
-              {PICKER.map((icon, i) => `${i + 1} ${reactionIcon(icon)}  `).join("")}
-              <Text dimColor>m more · 0 remove · Esc cancel</Text>
-            </>
-          ) : (
-            <>
-              <Text color="yellow">{moreQuery}▏ </Text>
-              {searchReactions(moreQuery)
-                .slice(0, 9)
-                .map((r, i) => `${i + 1} ${r.emoji} ${r.name}  `)
-                .join("")}
-              <Text dimColor>· type to filter · Enter first · Esc back</Text>
-            </>
-          )}
-        </Text>
-      ) : null}
-      <Box display={picking || pending || deleting || linkChoices ? "none" : "flex"}>
+      <Box display={pending || deleting || linkChoices ? "none" : "flex"}>
         <Composer draftKey={state.activeKey} active={focus === "input" && !showHelp} enabled={!!active} error={sendError} onSubmit={submit} />
       </Box>
       <StatusBar connection={state.connection} selfName={state.selfName} focus={focus} notify={state.notify} toast={toast} />
