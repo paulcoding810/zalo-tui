@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { LoginQRCallbackEventType } from "zca-js";
 import { statSync } from "node:fs";
 import { basename } from "node:path";
-import { parseAttachment, type AttachmentRequest } from "../attachment.ts";
+import type { AttachmentRequest } from "../attachment.ts";
+import { classifyInput } from "../commands.ts";
 import { renderQR, type RenderedQR } from "../qr.ts";
 import { messageLinks } from "../format.ts";
 import { reactionIcon, searchReactions } from "../reactions.ts";
@@ -16,6 +17,7 @@ import { ChatList } from "./ChatList.tsx";
 import { Composer } from "./Composer.tsx";
 import { LoginScreen } from "./LoginScreen.tsx";
 import { MessagePane } from "./MessagePane.tsx";
+import { HelpPane } from "./HelpPane.tsx";
 import { navStep } from "./nav.ts";
 import { onClick, onWheel } from "../terminalMouse.ts";
 import { hitTest } from "./hitTest.ts";
@@ -159,6 +161,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const [picking, setPicking] = useState(false);
   const [moreQuery, setMoreQuery] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [linkChoices, setLinkChoices] = useState<string[] | null>(null);
   const [pending, setPending] = useState<PendingAttachment | null>(null);
   const resolvePending = useRef<((ok: boolean) => void) | null>(null);
@@ -224,7 +227,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
 
   const click = useRef<(x: number, y: number) => void>(() => {});
   click.current = (x, y) => {
-    if (picking || pending || deleting || linkChoices) return;
+    if (picking || pending || deleting || linkChoices || showHelp) return;
     const hit = hitTest(
       {
         sidebarWidth,
@@ -319,6 +322,10 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   };
 
   useInput((input, key) => {
+    if (showHelp) {
+      setShowHelp(false);
+      return;
+    }
     if (linkChoices) {
       if (key.escape) return setLinkChoices(null);
       const url = /^[1-9]$/.test(input) ? linkChoices[Number(input) - 1] : undefined;
@@ -381,6 +388,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       }
       if (key.return || input === "i") return setFocus("input");
       if (key.escape || input === "h") return setFocus("list");
+      if (input === "?") return setShowHelp(true);
       if (input === "e" && selectedMsg) return setPicking(true);
       if (input === "d" && selectedMsg && !selectedMsg.recalled) return setDeleting(true);
       if (input === "o" && selectedMsg) {
@@ -416,6 +424,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       if (t) open(t.key, true);
       return;
     }
+    if (input === "?") return setShowHelp(true);
     if (input === "/") return setFiltering(true);
     if (key.escape) return setFilter("");
     if (input === "n") {
@@ -430,12 +439,18 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const submit = async (text: string): Promise<boolean> => {
     const key = state.activeKey;
     if (!key) return false;
-    const parsed = parseAttachment(text, isFile);
-    if (!parsed) return sendTextTo(key, text);
-    if ("error" in parsed) {
-      setSendError(parsed.error);
+    const action = classifyInput(text, isFile);
+    if (action.kind === "text") return sendTextTo(key, action.text);
+    if (action.kind === "help") {
+      setSendError(undefined);
+      setShowHelp(true);
+      return true;
+    }
+    if (action.kind === "error") {
+      setSendError(action.message);
       return false;
     }
+    const parsed = action.request;
     if (!parsed.confirm) return sendAttachmentTo(key, parsed);
     return new Promise<boolean>((resolve) => {
       resolvePending.current = resolve;
@@ -458,19 +473,23 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           height={paneHeight}
           info={listInfo}
         />
-        <MessagePane
-          thread={active}
-          messages={messages}
-          reactions={state.reactions}
-          selfId={state.selfId}
-          scroll={scroll}
-          selectedId={selectedMsg?.id ?? null}
-          followSelection={follow}
-          info={paneInfo}
-          focused={focus === "messages"}
-          width={columns - sidebarWidth}
-          height={paneHeight}
-        />
+        {showHelp ? (
+          <HelpPane width={columns - sidebarWidth} height={paneHeight} />
+        ) : (
+          <MessagePane
+            thread={active}
+            messages={messages}
+            reactions={state.reactions}
+            selfId={state.selfId}
+            scroll={scroll}
+            selectedId={selectedMsg?.id ?? null}
+            followSelection={follow}
+            info={paneInfo}
+            focused={focus === "messages"}
+            width={columns - sidebarWidth}
+            height={paneHeight}
+          />
+        )}
       </Box>
       {pending ? (
         <Text wrap="truncate-end">
@@ -513,7 +532,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
         </Text>
       ) : null}
       <Box display={picking || pending || deleting || linkChoices ? "none" : "flex"}>
-        <Composer draftKey={state.activeKey} active={focus === "input"} enabled={!!active} error={sendError} onSubmit={submit} />
+        <Composer draftKey={state.activeKey} active={focus === "input" && !showHelp} enabled={!!active} error={sendError} onSubmit={submit} />
       </Box>
       <StatusBar connection={state.connection} selfName={state.selfName} focus={focus} notify={state.notify} toast={toast} />
     </Box>
