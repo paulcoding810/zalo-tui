@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { attachmentUrl, findLinks, formatTime, messageLinks, messageText, wrapText } from "../src/format.ts";
+import { attachmentUrl, cleanText, findLinks, formatTime, hyperlink, linkSegments, messageLinks, messageText, textLinkRanges, wrapText, wrapWithOffsets } from "../src/format.ts";
 
 test("plain text is returned as is", () => {
   assert.equal(messageText({ msgType: "webchat", content: "xin chào" }), "xin chào");
@@ -55,4 +55,26 @@ test("message links combine the attachment link and text links without duplicate
   assert.deepEqual(messageLinks({ url: "https://d.vn", text: "[link] Docs https://d.vn" }), ["https://d.vn"]);
   assert.deepEqual(messageLinks({ text: "a https://a.vn b https://b.vn" }), ["https://a.vn", "https://b.vn"]);
   assert.deepEqual(messageLinks({ text: "https://a.vn", recalled: true }), []);
+});
+
+test("control characters are stripped and links carry no escape codes", () => {
+  assert.equal(cleanText("a\u001b]8;;evil\u0007b\u001b[2Jc\nd\te"), "a]8;;evilb[2Jc\nd\te");
+  assert.equal(messageText({ content: "hi\u001b[31m" }), "hi[31m");
+  assert.equal(attachmentUrl({ href: "https://x/\u001b]8;;y" }), undefined);
+  assert.equal(hyperlink("https://a.vn/\u0007x", "t"), "\u001b]8;;https://a.vn/x\u0007t\u001b]8;;\u0007");
+});
+
+test("wrapped lines keep their offsets so links span line breaks", () => {
+  const text = "đọc https://example.com/abcdef nhé";
+  const lines = wrapWithOffsets(text, 12);
+  assert.deepEqual(lines.map((l) => l.text), ["đọc", "https://exam", "ple.com/abcd", "ef nhé"]);
+  const ranges = textLinkRanges(text);
+  assert.deepEqual(ranges, [{ start: 4, end: 30, url: "https://example.com/abcdef" }]);
+  assert.deepEqual(lines.map((l) => linkSegments(l, ranges)), [
+    [{ text: "đọc" }],
+    [{ text: "https://exam", url: "https://example.com/abcdef" }],
+    [{ text: "ple.com/abcd", url: "https://example.com/abcdef" }],
+    [{ text: "ef", url: "https://example.com/abcdef" }, { text: " nhé" }],
+  ]);
+  assert.deepEqual(wrapWithOffsets("ab\ncd", 10), [{ text: "ab", start: 0 }, { text: "cd", start: 3 }]);
 });

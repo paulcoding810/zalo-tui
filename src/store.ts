@@ -1,3 +1,4 @@
+import { cleanText } from "./format.ts";
 import type { NotifyMode } from "./notify.ts";
 
 export type ThreadKind = "user" | "group";
@@ -72,7 +73,7 @@ export function upsertThreads(state: State, threads: Omit<Thread, "key" | "lastT
   for (const t of threads) {
     const key = threadKey(t.kind, t.id);
     const existing = next[key];
-    next[key] = { ...t, key, lastTs: existing?.lastTs ?? 0, placeholder: t.placeholder ?? false };
+    next[key] = { ...t, name: cleanText(t.name), key, lastTs: existing?.lastTs ?? 0, placeholder: t.placeholder ?? false };
   }
   return { ...state, threads: next };
 }
@@ -84,7 +85,8 @@ export function addMessages(state: State, incoming: ChatMessage[], countUnread: 
   const unread = { ...state.unread };
   const touched = new Set<string>();
 
-  for (const msg of incoming) {
+  for (const raw of incoming) {
+    const msg = { ...raw, text: cleanText(raw.text), senderName: cleanText(raw.senderName) };
     const list = touched.has(msg.threadKey) ? messages[msg.threadKey]! : [...(messages[msg.threadKey] ?? [])];
     touched.add(msg.threadKey);
     messages[msg.threadKey] = list;
@@ -188,7 +190,7 @@ export function applyActivity(state: State, activity: Activity): State {
     }
     const { kind, id } = parseKey(key);
     if (kind !== "user" && kind !== "group") continue;
-    const name = entry.name || id;
+    const name = cleanText(entry.name || "") || id;
     threads[key] = { key, id, kind, name, lastTs: entry.ts, placeholder: name === id };
   }
   return { ...state, threads };

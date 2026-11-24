@@ -20,6 +20,10 @@ function str(value: unknown): string {
 }
 
 export function messageText(data: { msgType?: string; content: Content }): string {
+  return cleanText(rawMessageText(data));
+}
+
+function rawMessageText(data: { msgType?: string; content: Content }): string {
   const { content, msgType = "" } = data;
   if (typeof content === "string") return content;
   const label = LABELS[msgType] ?? (msgType.replace(/^chat\./, "") || "message");
@@ -31,7 +35,9 @@ export function messageText(data: { msgType?: string; content: Content }): strin
 }
 
 function webUrl(value: unknown): string | undefined {
-  return typeof value === "string" && /^https?:\/\//.test(value.trim()) ? value.trim() : undefined;
+  if (typeof value !== "string") return undefined;
+  const url = value.trim();
+  return /^https?:\/\/[^\s\u0000-\u001f\u007f-\u009f]+$/.test(url) ? url : undefined;
 }
 
 export function attachmentUrl(content: Content): string | undefined {
@@ -102,23 +108,59 @@ export function formatTime(ts: number, now: Date = new Date()): string {
   return sameDay ? hm : `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${hm}`;
 }
 
-export function wrapText(text: string, width: number): string[] {
-  if (width <= 0) return [text];
-  const out: string[] = [];
+export function cleanText(text: string): string {
+  return text.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, "");
+}
+
+export type WrappedLine = { text: string; start: number };
+
+export function wrapWithOffsets(text: string, width: number): WrappedLine[] {
+  if (width <= 0) return [{ text, start: 0 }];
+  const out: WrappedLine[] = [];
+  let base = 0;
   for (const paragraph of text.split("\n")) {
     const chars = Array.from(paragraph);
-    if (chars.length === 0) {
-      out.push("");
-      continue;
-    }
     let start = 0;
     while (chars.length - start > width) {
       const space = chars.lastIndexOf(" ", start + width);
       const end = space > start ? space : start + width;
-      out.push(chars.slice(start, end).join(""));
+      out.push({ text: chars.slice(start, end).join(""), start: base + start });
       start = space > start ? end + 1 : end;
     }
-    out.push(chars.slice(start).join(""));
+    out.push({ text: chars.slice(start).join(""), start: base + start });
+    base += chars.length + 1;
   }
   return out;
+}
+
+export function wrapText(text: string, width: number): string[] {
+  return wrapWithOffsets(text, width).map((l) => l.text);
+}
+
+export type LinkRange = { start: number; end: number; url: string };
+export type Segment = { text: string; url?: string };
+
+export function textLinkRanges(text: string): LinkRange[] {
+  return findLinks(text).map((l) => {
+    const start = Array.from(text.slice(0, l.start)).length;
+    return { start, end: start + Array.from(text.slice(l.start, l.end)).length, url: l.url };
+  });
+}
+
+export function linkSegments(line: WrappedLine, ranges: LinkRange[]): Segment[] {
+  const chars = Array.from(line.text);
+  const segments: Segment[] = [];
+  chars.forEach((c, i) => {
+    const at = line.start + i;
+    const url = ranges.find((r) => at >= r.start && at < r.end)?.url;
+    const last = segments[segments.length - 1];
+    if (last && last.url === url) last.text += c;
+    else segments.push(url ? { text: c, url } : { text: c });
+  });
+  return segments.length ? segments : [{ text: "" }];
+}
+
+export function hyperlink(url: string, text: string): string {
+  const safe = cleanText(url);
+  return `\u001b]8;;${safe}\u0007${text}\u001b]8;;\u0007`;
 }

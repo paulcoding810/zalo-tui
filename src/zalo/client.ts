@@ -1,7 +1,7 @@
 import { CloseReason, Reactions, ThreadType, type API, type Message, type Reaction, type Undo } from "zca-js";
 import { basename } from "node:path";
 import type { AttachmentRequest } from "../attachment.ts";
-import { attachmentUrl, messageText } from "../format.ts";
+import { attachmentUrl, cleanText, messageText } from "../format.ts";
 import { loadActivity, saveActivity } from "./session.ts";
 import { mutedUntil, notificationContent, shouldNotify, showNotification } from "../notify.ts";
 import {
@@ -80,7 +80,7 @@ export class ZaloClient {
       this.api.getAllGroups().catch(() => ({ gridVerMap: {} })),
     ]);
     const selfName = account?.profile.displayName || account?.profile.zaloName || selfId;
-    this.store.update((s) => ({ ...s, selfId, selfName }));
+    this.store.update((s) => ({ ...s, selfId, selfName: cleanText(selfName) }));
     this.store.update((s) =>
       upsertThreads(
         s,
