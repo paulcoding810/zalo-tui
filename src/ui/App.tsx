@@ -30,6 +30,11 @@ import { StoreContext, useStoreState } from "./useStore.ts";
 type Focus = "list" | "input" | "messages";
 
 const PREVIEW_DELAY_MS = 300;
+
+function deleteOptions(isSelf: boolean): { key: string; label: string; mode: "recall" | "delete" }[] {
+  const forMe = { key: "d", label: "Delete for me", mode: "delete" as const };
+  return isSelf ? [{ key: "r", label: "Recall for everyone", mode: "recall" as const }, forMe] : [forMe];
+}
 const WHEEL_LINES = 3;
 
 
@@ -162,6 +167,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const [toast, setToast] = useState<string>();
   const [picker, setPicker] = useState<{ query: string; cursor: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteCursor, setDeleteCursor] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
   const [linkChoices, setLinkChoices] = useState<string[] | null>(null);
   const [linkCursor, setLinkCursor] = useState(0);
@@ -254,7 +260,15 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       if (url) openLink(url);
       return;
     }
-    if (pending || deleting || showHelp) return;
+    if (deleting) {
+      const options = deleteOptions(selectedMsg?.isSelf ?? false);
+      const at = popupContentAt(popupFrameFor(34, choicePopupHeight(options.length)), x, y);
+      if (!at) return setDeleting(false);
+      const option = options[at.row];
+      if (option) removeSelected(option.mode);
+      return;
+    }
+    if (pending || showHelp) return;
     const hit = hitTest(
       {
         sidebarWidth,
@@ -361,7 +375,11 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       return;
     }
     if (deleting) {
+      const options = deleteOptions(selectedMsg?.isSelf ?? false);
       if (key.escape) return setDeleting(false);
+      if (key.upArrow || input === "k") return setDeleteCursor((c) => Math.max(0, c - 1));
+      if (key.downArrow || input === "j") return setDeleteCursor((c) => Math.min(options.length - 1, c + 1));
+      if (key.return) return removeSelected(options[deleteCursor]!.mode);
       if (input === "r" && selectedMsg?.isSelf) return removeSelected("recall");
       if (input === "d") return removeSelected("delete");
       return;
@@ -413,7 +431,10 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       if (key.escape || input === "h") return setFocus("list");
       if (input === "?") return setShowHelp(true);
       if (input === "e" && selectedMsg) return setPicker({ query: "", cursor: 0 });
-      if (input === "d" && selectedMsg && !selectedMsg.recalled) return setDeleting(true);
+      if (input === "d" && selectedMsg && !selectedMsg.recalled) {
+        setDeleteCursor(0);
+        return setDeleting(true);
+      }
       if (input === "o" && selectedMsg) {
         const links = messageLinks(selectedMsg);
         if (links.length === 0) flash("nothing to open in this message");
@@ -484,6 +505,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     });
   };
 
+  const deleteFrame = deleting ? popupFrameFor(34, choicePopupHeight(deleteOptions(selectedMsg?.isSelf ?? false).length)) : null;
   const linkFrame = linkChoices ? popupFrameFor(56, choicePopupHeight(linkChoices.length)) : null;
   const reactionFrame = picker
     ? popupFrameFor(40, 14)
@@ -521,6 +543,15 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
             height={paneHeight}
           />
         )}
+        {deleting && selectedMsg && deleteFrame ? (
+          <ChoicePopup
+            frame={deleteFrame}
+            title="Remove message"
+            cursor={deleteCursor}
+            choices={deleteOptions(selectedMsg.isSelf).map((o) => ({ hint: o.key, label: o.label, color: "red" }))}
+            footer="↑↓ Enter · Esc cancel"
+          />
+        ) : null}
         {linkChoices && linkFrame ? (
           <ChoicePopup
             frame={linkFrame}
@@ -541,13 +572,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           <Text dimColor>Enter send · t send as text · Esc cancel</Text>
         </Text>
       ) : null}
-      {deleting && selectedMsg ? (
-        <Text wrap="truncate-end">
-          <Text color="red">Remove this message? </Text>
-          {selectedMsg.isSelf ? "r recall for everyone · " : ""}d delete for me <Text dimColor>· Esc cancel</Text>
-        </Text>
-      ) : null}
-      <Box display={pending || deleting ? "none" : "flex"}>
+      <Box display={pending ? "none" : "flex"}>
         <Composer draftKey={state.activeKey} active={focus === "input" && !showHelp} enabled={!!active} error={sendError} onSubmit={submit} />
       </Box>
       <StatusBar connection={state.connection} selfName={state.selfName} focus={focus} notify={state.notify} toast={toast} />
