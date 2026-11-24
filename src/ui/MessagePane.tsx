@@ -1,14 +1,25 @@
 import { Box, Text } from "ink";
 import { reactionIcon } from "../reactions.ts";
 import { formatTime, hyperlink, linkSegments, textLinkRanges, wrapWithOffsets, type LinkRange, type Segment } from "../format.ts";
-import { reactionKey, reactionSummary, type ChatMessage, type ReactionEntry, type Thread } from "../store.ts";
+import { reactionKey, reactionSummary, type ChatMessage, type ReactionCount, type ReactionEntry, type Thread } from "../store.ts";
 
-type Line = { key: string; msgId: string; time: string; sender: string; isSelf: boolean; indent: number; segments: Segment[]; dim: boolean };
+type Line = {
+  key: string;
+  msgId: string;
+  time: string;
+  sender: string;
+  isSelf: boolean;
+  indent: number;
+  segments: Segment[];
+  reactions?: ReactionCount[];
+  dim: boolean;
+};
 
 type Props = {
   thread: Thread | null;
   messages: ChatMessage[];
   reactions: Record<string, Record<string, ReactionEntry>>;
+  selfId: string;
   scroll: number;
   selectedId: string | null;
   followSelection: boolean;
@@ -22,24 +33,22 @@ export function buildLines(
   messages: ChatMessage[],
   width: number,
   reactions: Record<string, Record<string, ReactionEntry>> = {},
+  selfId = "",
 ): Line[] {
   const lines: Line[] = [];
   for (const m of messages) {
     const time = formatTime(m.ts);
     const sender = m.isSelf ? "me" : m.senderName;
     const prefixLength = Array.from(`${time} ${sender}: `).length;
-    const summary = reactionSummary(reactions[reactionKey(m.threadKey, m.id)])
-      .map((r) => `${reactionIcon(r.icon)}${r.count > 1 ? r.count : ""}`)
-      .join(" ");
+    const summary = m.recalled ? [] : reactionSummary(reactions[reactionKey(m.threadKey, m.id)], selfId);
     const labelled = !!m.url && !m.text.includes(m.url);
     const text = m.recalled ? "[recalled]" : labelled ? `${m.text} ↗` : m.text;
-    const body = summary ? `${text}  ${summary}` : text;
     const ranges: LinkRange[] = m.recalled
       ? []
       : labelled
         ? [{ start: 0, end: Array.from(text).length, url: m.url! }]
         : textLinkRanges(text);
-    wrapWithOffsets(body, Math.max(10, width - prefixLength)).forEach((line, i) =>
+    wrapWithOffsets(text, Math.max(10, width - prefixLength)).forEach((line, i) =>
       lines.push({
         key: `${m.id}-${i}`,
         msgId: m.id,
@@ -51,6 +60,19 @@ export function buildLines(
         dim: !!m.recalled,
       }),
     );
+    if (summary.length) {
+      lines.push({
+        key: `${m.id}-r`,
+        msgId: m.id,
+        time: "",
+        sender: "",
+        isSelf: m.isSelf,
+        indent: prefixLength,
+        segments: [],
+        reactions: summary,
+        dim: false,
+      });
+    }
   }
   return lines;
 }
@@ -59,6 +81,7 @@ export function MessagePane({
   thread,
   messages,
   reactions,
+  selfId,
   scroll,
   selectedId,
   followSelection,
@@ -68,7 +91,7 @@ export function MessagePane({
   height,
 }: Props) {
   const inner = width - 4;
-  const lines = buildLines(messages, inner, reactions);
+  const lines = buildLines(messages, inner, reactions, selfId);
   const maxScroll = Math.max(0, lines.length - height);
   let offset = Math.min(scroll, maxScroll);
   const first = selectedId && followSelection ? lines.findIndex((l) => l.msgId === selectedId) : -1;
@@ -95,6 +118,11 @@ export function MessagePane({
             {l.time ? <Text dimColor>{l.time} </Text> : null}
             {l.sender ? <Text color={l.isSelf ? "green" : "cyan"}>{l.sender}: </Text> : null}
             {" ".repeat(l.indent)}
+            {l.reactions?.map((r, i) => (
+              <Text key={i} color={r.mine ? "cyan" : undefined} bold={r.mine} dimColor={!r.mine}>
+                {`${reactionIcon(r.icon)} ${r.count}  `}
+              </Text>
+            ))}
             {l.segments.map((s, i) =>
               s.url ? (
                 <Text key={i} underline>

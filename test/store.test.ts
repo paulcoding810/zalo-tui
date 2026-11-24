@@ -98,9 +98,13 @@ test("reactions keep each person's latest icon and can be removed", () => {
   s = applyReaction(s, A, ["m1"], "u2", "/-heart", 11);
   s = applyReaction(s, A, ["m1"], "u3", "/-strong", 12);
   assert.deepEqual(reactionSummary(s.reactions[reactionKey(A, "m1")]), [
-    { icon: "/-heart", count: 2 },
-    { icon: "/-strong", count: 1 },
+    { icon: "/-heart", count: 2, mine: false },
+    { icon: "/-strong", count: 1, mine: false },
   ]);
+  assert.deepEqual(
+    reactionSummary(s.reactions[reactionKey(A, "m1")], "u3").map((r) => r.mine),
+    [false, true],
+  );
   s = applyReaction(s, A, ["m1"], "u2", "/-strong", 20);
   s = applyReaction(s, A, ["m1"], "u2", "/-heart", 15);
   assert.equal(s.reactions[reactionKey(A, "m1")]!["u2"]!.icon, "/-strong");

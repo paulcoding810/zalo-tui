@@ -151,10 +151,17 @@ export function applyReaction(
   return reactions === state.reactions ? state : { ...state, reactions };
 }
 
-export function reactionSummary(entries: Record<string, ReactionEntry> | undefined): { icon: string; count: number }[] {
-  const counts = new Map<string, number>();
-  for (const { icon } of Object.values(entries ?? {})) counts.set(icon, (counts.get(icon) ?? 0) + 1);
-  return [...counts].map(([icon, count]) => ({ icon, count })).sort((a, b) => b.count - a.count || a.icon.localeCompare(b.icon));
+export type ReactionCount = { icon: string; count: number; mine: boolean };
+
+export function reactionSummary(entries: Record<string, ReactionEntry> | undefined, selfId = ""): ReactionCount[] {
+  const counts = new Map<string, ReactionCount>();
+  for (const [uid, { icon }] of Object.entries(entries ?? {})) {
+    const entry = counts.get(icon) ?? { icon, count: 0, mine: false };
+    entry.count += 1;
+    if (selfId && uid === selfId) entry.mine = true;
+    counts.set(icon, entry);
+  }
+  return [...counts.values()].sort((a, b) => b.count - a.count || a.icon.localeCompare(b.icon));
 }
 
 export function removeMessage(state: State, key: string, msgId: string): State {

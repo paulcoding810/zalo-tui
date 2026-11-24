@@ -429,6 +429,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           thread={active}
           messages={messages}
           reactions={state.reactions}
+          selfId={state.selfId}
           scroll={scroll}
           selectedId={selectedMsg?.id ?? null}
           followSelection={follow}
