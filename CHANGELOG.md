@@ -10,6 +10,10 @@ A release is made by adding a section for the new version below and bumping `ver
 
 - `zalo-tui --version` (or `-v`) prints the installed version.
 
+### Changed
+
+- Group messages now notify like direct messages, as in the Zalo app; muted groups stay silent. Press `m` in the chat list to notify only when you're @mentioned (mentions then notify even in muted groups).
+
 ### Fixed
 
 - A message now shows every reaction a person adds, not only their latest one.

@@ -1,5 +1,5 @@
 import { Text } from "ink";
-import type { NotifyMode } from "../notify.ts";
+import type { GroupNotify, NotifyMode } from "../notify.ts";
 import type { Connection } from "../store.ts";
 
 const COLORS = { idle: "gray", connecting: "yellow", connected: "green", closed: "red" } as const;
@@ -9,16 +9,17 @@ type Props = {
   selfName: string;
   focus: "list" | "input" | "messages";
   notify: NotifyMode;
+  notifyGroups: GroupNotify;
   toast?: string;
 };
 
 const NOTIFY_LABEL: Record<NotifyMode, string> = { full: "notify on", sender: "notify sender", off: "notify off" };
 
-export function StatusBar({ connection, selfName, focus, notify, toast }: Props) {
+export function StatusBar({ connection, selfName, focus, notify, notifyGroups, toast }: Props) {
   const label = connection.state === "closed" ? `disconnected: ${connection.reason ?? ""} · r reconnect` : connection.state;
   const hints =
     focus === "list"
-      ? "j/k move · l/Tab messages · Enter/i compose · / filter · n notify · Ctrl+C quit"
+      ? "j/k move · l/Tab messages · Enter/i compose · / filter · n notify · m group alerts · Ctrl+C quit"
       : focus === "input"
         ? "Enter send · Esc back · PgUp/PgDn scroll · Ctrl+C quit"
         : "j/k select · h/Tab chats · e react · d delete · o open · i compose · Ctrl+C quit";
@@ -26,7 +27,7 @@ export function StatusBar({ connection, selfName, focus, notify, toast }: Props)
     <Text wrap="truncate-end">
       <Text color={COLORS[connection.state]}>● {label}</Text>
       {toast ? <Text color="yellow"> · {toast}</Text> : null}
-      <Text dimColor> · {selfName} · {NOTIFY_LABEL[notify]} · {hints}</Text>
+      <Text dimColor> · {selfName} · {NOTIFY_LABEL[notify]}{notify !== "off" && notifyGroups === "mentions" ? " (groups: @me)" : ""} · {hints}</Text>
     </Text>
   );
 }

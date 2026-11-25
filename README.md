@@ -12,7 +12,7 @@ A terminal client for Zalo personal accounts, built on [zca-js](https://github.c
 - Read and send messages; links are clickable and open with `o`.
 - Send photos and files (drag a file into the terminal, or `/photo` and `/file`).
 - Reactions (all of Zalo's built-in ones), recall, and delete for yourself.
-- Desktop notifications for direct messages and @mentions, respecting muted chats.
+- Desktop notifications, respecting muted chats; groups can be limited to @mentions.
 - Keyboard first (vim-style keys), with mouse clicks and wheel scrolling.
 
 ## Requirements
@@ -47,7 +47,7 @@ Type `/help` or press `?` inside the app to see all keys. `zalo-tui --version` p
 
 | Where | Keys |
 |---|---|
-| Chat list | `j`/`k` or `↑`/`↓` move · `g`/`G` top/bottom · `Ctrl+d`/`Ctrl+u` half page · `/` filter · `l` or `Tab` messages · `Enter` or `i` type · `n` notifications · `r` reconnect |
+| Chat list | `j`/`k` or `↑`/`↓` move · `g`/`G` top/bottom · `Ctrl+d`/`Ctrl+u` half page · `/` filter · `l` or `Tab` messages · `Enter` or `i` type · `n` notifications · `m` group alerts: all or @mentions · `r` reconnect |
 | Messages | `j`/`k` select · `e` react · `d` recall or delete · `o` open photo, file or link · `h` or `Tab` chats · `i` type |
 | Message box | `Enter` send · `Esc` back · `←`/`→` move · `Ctrl+a`/`Ctrl+e` start/end · `Ctrl+u` clear |
 | Anywhere | `PgUp`/`PgDn` or wheel scroll · click to open a chat, select a message or type · `Shift`-drag selects text · `Ctrl+C` quit |
@@ -70,7 +70,7 @@ Everything is stored in `~/.config/zalo-tui/`, readable only by you:
 | File | Contents |
 |---|---|
 | `credentials.json` | your logged-in session. Anyone with this file can use your account. Delete it to log out. |
-| `settings.json` | notification preference |
+| `settings.json` | notification preferences |
 | `activity.json` | each chat's last activity time and name, used to keep the list order |
 | `debug.log` | only with `ZALO_TUI_DEBUG=1`: why each message did or didn't notify (no names or text) |
 

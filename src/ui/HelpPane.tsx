@@ -16,6 +16,7 @@ const SECTIONS: [string, [string, string][]][] = [
     [
       ["j/k ↑↓  g/G  Ctrl+d/u", "move, top/bottom, half page"],
       ["/  n  r", "filter, notifications, reconnect"],
+      ["m", "group alerts: every message or @mentions"],
       ["l or Tab · Enter or i", "messages · type"],
     ],
   ],

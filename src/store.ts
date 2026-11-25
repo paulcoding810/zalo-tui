@@ -1,5 +1,5 @@
 import { cleanText } from "./format.ts";
-import type { NotifyMode } from "./notify.ts";
+import type { GroupNotify, NotifyMode } from "./notify.ts";
 
 export type ThreadKind = "user" | "group";
 
@@ -43,6 +43,7 @@ export type State = {
   activeKey: string | null;
   connection: Connection;
   notify: NotifyMode;
+  notifyGroups: GroupNotify;
   terminalFocused: boolean;
 };
 
@@ -66,6 +67,7 @@ export function initialState(): State {
     activeKey: null,
     connection: { state: "idle" },
     notify: "full",
+    notifyGroups: "all",
     terminalFocused: true,
   };
 }

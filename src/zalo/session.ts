@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { NotifyMode } from "../notify.ts";
+import type { GroupNotify, NotifyMode } from "../notify.ts";
 import type { Activity } from "../store.ts";
 import { imageSizeFromFile } from "image-size/fromFile";
 import { statSync } from "node:fs";
@@ -12,7 +12,7 @@ const credentialsPath = join(stateDir, "credentials.json");
 export const qrPath = join(stateDir, "qr.png");
 const settingsPath = join(stateDir, "settings.json");
 
-export type Settings = { notify?: NotifyMode };
+export type Settings = { notify?: NotifyMode; notifyGroups?: GroupNotify };
 
 export function loadSettings(): Settings {
   try {
@@ -24,7 +24,7 @@ export function loadSettings(): Settings {
 
 export function saveSettings(settings: Settings): void {
   ensureStateDir();
-  writeFileSync(settingsPath, JSON.stringify(settings), { mode: 0o600 });
+  writeFileSync(settingsPath, JSON.stringify({ ...loadSettings(), ...settings }), { mode: 0o600 });
 }
 
 const activityPath = join(stateDir, "activity.json");

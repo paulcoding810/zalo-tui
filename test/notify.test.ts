@@ -23,9 +23,15 @@ test("direct messages notify, own messages do not", () => {
   assert.equal(shouldNotify(msg(DM, { isSelf: true }), state(), new Map()), false);
 });
 
-test("group messages notify only when mentioning me", () => {
-  assert.equal(shouldNotify(msg(G), state(), new Map()), false);
-  assert.equal(shouldNotify(msg(G, { mentionsMe: true }), state(), new Map()), true);
+test("group messages notify for every message unless set to mentions only", () => {
+  assert.equal(shouldNotify(msg(G), state(), new Map()), true);
+  assert.equal(shouldNotify(msg(G), state(), new Map([[G, Infinity]])), false);
+  const mentions = state({ notifyGroups: "mentions" });
+  assert.equal(shouldNotify(msg(G), mentions, new Map()), false);
+  assert.equal(shouldNotify(msg(G, { mentionsMe: true }), mentions, new Map()), true);
+  assert.equal(shouldNotify(msg(G, { mentionsMe: true }), mentions, new Map([[G, Infinity]])), true);
+  assert.equal(notifySkipReason(msg(G), mentions, new Map()), "group message without mention");
+  assert.equal(shouldNotify(msg(DM), mentions, new Map([[DM, Infinity]])), false);
 });
 
 test("open chat, muted chats and off mode are silent", () => {
@@ -58,5 +64,4 @@ test("the open chat notifies only while the terminal is not focused", () => {
   assert.equal(shouldNotify(msg(DM), open, new Map()), false);
   assert.equal(shouldNotify(msg(DM), { ...open, terminalFocused: false }, new Map()), true);
   assert.equal(notifySkipReason(msg(DM), open, new Map()), "chat open and terminal focused");
-  assert.equal(notifySkipReason(msg(G), state(), new Map()), "group message without mention");
 });

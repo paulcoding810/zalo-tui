@@ -510,6 +510,12 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       saveSettings({ notify });
       return flash(`notifications: ${notify === "sender" ? "sender only" : notify}`);
     }
+    if (input === "m") {
+      const notifyGroups = state.notifyGroups === "all" ? "mentions" : "all";
+      store.update((s) => ({ ...s, notifyGroups }));
+      saveSettings({ notifyGroups });
+      return flash(notifyGroups === "all" ? "groups: notify every message" : "groups: notify only when mentioned");
+    }
     if (input === "r" && state.connection.state === "closed") client.connect();
   });
 
@@ -599,7 +605,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       <Box display={pending ? "none" : "flex"}>
         <Composer draftKey={state.activeKey} active={focus === "input" && !showHelp} enabled={!!active} error={sendError} onSubmit={submit} />
       </Box>
-      <StatusBar connection={state.connection} selfName={state.selfName} focus={focus} notify={state.notify} toast={toast} />
+      <StatusBar connection={state.connection} selfName={state.selfName} focus={focus} notify={state.notify} notifyGroups={state.notifyGroups} toast={toast} />
     </Box>
   );
 }

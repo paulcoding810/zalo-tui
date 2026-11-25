@@ -5,6 +5,10 @@ export type NotifyMode = "full" | "sender" | "off";
 
 export const NOTIFY_MODES: NotifyMode[] = ["full", "sender", "off"];
 
+export type GroupNotify = "all" | "mentions";
+
+export const GROUP_NOTIFY_MODES: GroupNotify[] = ["all", "mentions"];
+
 export function nextNotifyMode(mode: NotifyMode): NotifyMode {
   return NOTIFY_MODES[(NOTIFY_MODES.indexOf(mode) + 1) % NOTIFY_MODES.length]!;
 }
@@ -24,8 +28,9 @@ export function notifySkipReason(
   if (state.notify === "off") return "notifications off";
   if (m.isSelf) return "own message";
   if (m.threadKey === state.activeKey && state.terminalFocused) return "chat open and terminal focused";
+  const isGroup = state.threads[m.threadKey]?.kind === "group";
+  if (isGroup && state.notifyGroups === "mentions") return m.mentionsMe ? null : "group message without mention";
   if ((muted.get(m.threadKey) ?? 0) > now) return "chat muted";
-  if (state.threads[m.threadKey]?.kind === "group" && !m.mentionsMe) return "group message without mention";
   return null;
 }
 
