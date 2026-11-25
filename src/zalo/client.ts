@@ -150,7 +150,7 @@ export class ZaloClient {
       const kind = state.threads[m.threadKey]?.kind ?? "unknown";
       const skip =
         notifySkipReason(m, state, this.muted, now) ??
-        (now - (this.lastNotified.get(m.threadKey) ?? 0) < 5000 ? "throttled" : null);
+        (!m.mentionsMe && now - (this.lastNotified.get(m.threadKey) ?? 0) < 5000 ? "throttled" : null);
       debugLog(`notify ${kind} ${skip ? `skipped: ${skip}` : "shown"} (terminal ${state.terminalFocused ? "focused" : "unfocused"})`);
       if (skip) continue;
       this.lastNotified.set(m.threadKey, now);
