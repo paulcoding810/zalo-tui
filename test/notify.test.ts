@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mutedUntil, nextNotifyMode, notificationContent, notifySkipReason, shouldNotify } from "../src/notify.ts";
+import { mutedUntil, nextNotifyMode, notificationCommand, notificationContent, notifySkipReason, shouldNotify } from "../src/notify.ts";
 import { initialState, openThread, threadKey, upsertThreads, type ChatMessage, type State } from "../src/store.ts";
 
 const DM = threadKey("user", "1");
@@ -64,4 +64,16 @@ test("the open chat notifies only while the terminal is not focused", () => {
   assert.equal(shouldNotify(msg(DM), open, new Map()), false);
   assert.equal(shouldNotify(msg(DM), { ...open, terminalFocused: false }, new Map()), true);
   assert.equal(notifySkipReason(msg(DM), open, new Map()), "chat open and terminal focused");
+});
+
+test("terminal-notifier is preferred on macOS and groups by chat", () => {
+  const withNotifier = { platform: "darwin" as const, terminalNotifier: "/bin/tn", terminalApp: "com.example.term" };
+  assert.deepEqual(notificationCommand("An", "hi", "user:1", withNotifier), [
+    "/bin/tn",
+    ["-title", "Zalo", "-subtitle", "\\An", "-message", "\\hi", "-group", "zalo-tui:user:1", "-activate", "com.example.term"],
+  ]);
+  assert.deepEqual(notificationCommand("An", "", "user:1", { ...withNotifier, terminalApp: undefined })![1].slice(4), ["-message", "\\ ", "-group", "zalo-tui:user:1"]);
+  assert.equal(notificationCommand("An", "hi", "user:1", { platform: "darwin", terminalNotifier: null })![0], "osascript");
+  assert.equal(notificationCommand("An", "hi", "user:1", { platform: "linux", terminalNotifier: null })![0], "notify-send");
+  assert.equal(notificationCommand("An", "hi", "user:1", { platform: "win32", terminalNotifier: null }), null);
 });

@@ -19,6 +19,7 @@ A terminal client for Zalo personal accounts, built on [zca-js](https://github.c
 
 - Node.js 22 or newer.
 - macOS is the main target. Notifications and opening links use `osascript` and `open`; on Linux they fall back to `notify-send` and `xdg-open`, which are untested. Windows is not supported.
+- Optional on macOS: with [terminal-notifier](https://github.com/julienXX/terminal-notifier) installed (`brew install terminal-notifier`), clicking a notification brings your terminal to the front, and each chat keeps only its latest notification.
 - A terminal with true mouse and focus reporting works best (Ghostty, iTerm2, WezTerm, Kitty).
 
 ## Install

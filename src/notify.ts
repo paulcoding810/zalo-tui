@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { accessSync, constants } from "node:fs";
+import { delimiter, join } from "node:path";
 import type { ChatMessage, State } from "./store.ts";
 
 export type NotifyMode = "full" | "sender" | "off";
@@ -51,29 +53,54 @@ export function notificationContent(m: ChatMessage, state: State): { title: stri
   return { title, body: chars.length > 120 ? chars.slice(0, 119).join("") + "…" : chars.join("") };
 }
 
-export function showNotification(title: string, body: string): void {
+export type NotifierEnv = { platform: NodeJS.Platform; terminalNotifier: string | null; terminalApp?: string };
+
+export function notificationCommand(title: string, body: string, group: string, env: NotifierEnv): [string, string[]] | null {
+  if (env.platform === "darwin" && env.terminalNotifier) {
+    const literal = (value: string) => `\\${value || " "}`;
+    const args = ["-title", "Zalo", "-subtitle", literal(title), "-message", literal(body), "-group", `zalo-tui:${group}`];
+    if (env.terminalApp) args.push("-activate", env.terminalApp);
+    return [env.terminalNotifier, args];
+  }
+  if (env.platform === "darwin") {
+    return [
+      "osascript",
+      ["-e", "on run argv", "-e", 'display notification (item 2 of argv) with title "Zalo" subtitle (item 1 of argv)', "-e", "end run", title, body],
+    ];
+  }
+  if (env.platform === "linux") return ["notify-send", ["--app-name=Zalo", title, body]];
+  return null;
+}
+
+let notifierEnv: NotifierEnv | undefined;
+
+function findOnPath(name: string): string | null {
+  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
+    if (!dir) continue;
+    const candidate = join(dir, name);
+    try {
+      accessSync(candidate, constants.X_OK);
+      return candidate;
+    } catch {}
+  }
+  return null;
+}
+
+function currentEnv(): NotifierEnv {
+  notifierEnv ??= {
+    platform: process.platform,
+    terminalNotifier: process.platform === "darwin" ? findOnPath("terminal-notifier") : null,
+    terminalApp: process.env.__CFBundleIdentifier || undefined,
+  };
+  return notifierEnv;
+}
+
+export function showNotification(title: string, body: string, group: string): void {
   process.stdout.write("\x07");
-  const command =
-    process.platform === "darwin"
-      ? [
-          "osascript",
-          [
-            "-e",
-            "on run argv",
-            "-e",
-            "display notification (item 2 of argv) with title \"Zalo\" subtitle (item 1 of argv)",
-            "-e",
-            "end run",
-            title,
-            body,
-          ],
-        ]
-      : process.platform === "linux"
-        ? ["notify-send", ["--app-name=Zalo", title, body]]
-        : null;
+  const command = notificationCommand(title, body, group, currentEnv());
   if (!command) return;
   try {
-    const child = spawn(command[0] as string, command[1] as string[], { stdio: "ignore", detached: true });
+    const child = spawn(command[0], command[1], { stdio: "ignore", detached: true });
     child.on("error", () => {});
     child.unref();
   } catch {}

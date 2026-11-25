@@ -155,7 +155,7 @@ export class ZaloClient {
       if (skip) continue;
       this.lastNotified.set(m.threadKey, now);
       const { title, body } = notificationContent(m, state);
-      showNotification(title, body);
+      showNotification(title, body, m.threadKey);
     }
   }
 
