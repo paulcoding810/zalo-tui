@@ -1,13 +1,13 @@
 import { render } from "ink";
 import pkg from "../package.json" with { type: "json" };
 import { GROUP_NOTIFY_MODES, NOTIFY_MODES, setNotificationClick } from "./notify.ts";
-import { listenForOpenRequests, openChatCommand, openRequestFile } from "./openRequest.ts";
+import { listenForOpenRequests, openChatCommand } from "./openRequest.ts";
 import { Store } from "./store.ts";
 import { trackTerminalFocus } from "./terminalFocus.ts";
 import { trackMouseWheel } from "./terminalMouse.ts";
 import { App } from "./ui/App.tsx";
 import type { ZaloClient } from "./zalo/client.ts";
-import { loadSettings, stateDir } from "./zalo/session.ts";
+import { ensureStateDir, loadSettings, stateDir } from "./zalo/session.ts";
 
 if (process.argv.includes("--version") || process.argv.includes("-v")) {
   console.log(pkg.version);
@@ -24,9 +24,9 @@ const app = render(<App store={store} onClient={(c) => (session.client = c)} />,
 
 const stopFocus = trackTerminalFocus((terminalFocused) => store.update((s) => ({ ...s, terminalFocused })));
 const stopMouse = trackMouseWheel();
-const requestFile = openRequestFile(stateDir);
-setNotificationClick((key) => openChatCommand(key, requestFile));
-const stopOpenRequests = listenForOpenRequests(requestFile, (key) =>
+ensureStateDir();
+setNotificationClick((key) => openChatCommand(key, stateDir));
+const stopOpenRequests = listenForOpenRequests(stateDir, (key) =>
   store.update((s) => ({ ...s, openRequest: { key, seq: (s.openRequest?.seq ?? 0) + 1 } })),
 );
 process.on("exit", () => {
