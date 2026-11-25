@@ -6,6 +6,14 @@ A release is made by adding a section for the new version below and bumping `ver
 
 ## [Unreleased]
 
+### Added
+
+- `zalo-tui --version` (or `-v`) prints the installed version.
+
+### Fixed
+
+- A message now shows every reaction a person adds, not only their latest one.
+
 ## [0.1.0] - 2026-11-24
 
 ### Added

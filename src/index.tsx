@@ -1,4 +1,5 @@
 import { render } from "ink";
+import pkg from "../package.json" with { type: "json" };
 import { NOTIFY_MODES } from "./notify.ts";
 import { Store } from "./store.ts";
 import { trackTerminalFocus } from "./terminalFocus.ts";
@@ -6,6 +7,11 @@ import { trackMouseWheel } from "./terminalMouse.ts";
 import { App } from "./ui/App.tsx";
 import type { ZaloClient } from "./zalo/client.ts";
 import { loadSettings } from "./zalo/session.ts";
+
+if (process.argv.includes("--version") || process.argv.includes("-v")) {
+  console.log(pkg.version);
+  process.exit(0);
+}
 
 const store = new Store();
 const { notify } = loadSettings();

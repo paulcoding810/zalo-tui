@@ -43,7 +43,7 @@ Run `pnpm build` again after pulling changes.
 
 Run `zalo-tui`, then open Zalo on your phone, use its QR scanner on the code shown, and confirm the login on the phone.
 
-Type `/help` or press `?` inside the app to see all keys.
+Type `/help` or press `?` inside the app to see all keys. `zalo-tui --version` prints the installed version.
 
 | Where | Keys |
 |---|---|
