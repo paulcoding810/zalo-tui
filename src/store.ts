@@ -26,7 +26,7 @@ export type ChatMessage = {
   url?: string;
 };
 
-export type ReactionEntry = { icon: string; ts: number };
+export type ReactionEntry = { icons: Record<string, number>; cleared: number };
 
 export type Connection = {
   state: "idle" | "connecting" | "connected" | "closed";
@@ -142,10 +142,16 @@ export function applyReaction(
   for (const msgId of msgIds) {
     const key = reactionKey(threadKey, msgId);
     const current = reactions[key] ?? {};
-    if ((current[uid]?.ts ?? -Infinity) > ts) continue;
-    const next = { ...current };
-    if (icon) next[uid] = { icon, ts };
-    else delete next[uid];
+    const entry = current[uid] ?? { icons: {}, cleared: -Infinity };
+    let updated: ReactionEntry;
+    if (icon) {
+      if (ts <= entry.cleared || (entry.icons[icon] ?? -Infinity) >= ts) continue;
+      updated = { ...entry, icons: { ...entry.icons, [icon]: ts } };
+    } else {
+      if (ts <= entry.cleared) continue;
+      updated = { icons: Object.fromEntries(Object.entries(entry.icons).filter(([, at]) => at > ts)), cleared: ts };
+    }
+    const next = { ...current, [uid]: updated };
     reactions = { ...reactions, [key]: next };
   }
   return reactions === state.reactions ? state : { ...state, reactions };
@@ -155,11 +161,13 @@ export type ReactionCount = { icon: string; count: number; mine: boolean };
 
 export function reactionSummary(entries: Record<string, ReactionEntry> | undefined, selfId = ""): ReactionCount[] {
   const counts = new Map<string, ReactionCount>();
-  for (const [uid, { icon }] of Object.entries(entries ?? {})) {
-    const entry = counts.get(icon) ?? { icon, count: 0, mine: false };
-    entry.count += 1;
-    if (selfId && uid === selfId) entry.mine = true;
-    counts.set(icon, entry);
+  for (const [uid, { icons }] of Object.entries(entries ?? {})) {
+    for (const icon of Object.keys(icons)) {
+      const entry = counts.get(icon) ?? { icon, count: 0, mine: false };
+      entry.count += 1;
+      if (selfId && uid === selfId) entry.mine = true;
+      counts.set(icon, entry);
+    }
   }
   return [...counts.values()].sort((a, b) => b.count - a.count || a.icon.localeCompare(b.icon));
 }

@@ -92,26 +92,34 @@ test("activity round-trips and restores order across runs", () => {
   assert.equal(Object.keys(applyActivity(base(), { "bad": { name: "x", ts: 1 }, "x:1": { name: "y", ts: 2 } } as never).threads).length, 3);
 });
 
-test("reactions keep each person's latest icon and can be removed", () => {
+test("reactions keep every icon a person adds until they remove them", () => {
   let s = base();
+  const summary = (selfId = "") => reactionSummary(s.reactions[reactionKey(A, "m1")], selfId);
   s = applyReaction(s, A, ["m1"], "u1", "/-heart", 10);
   s = applyReaction(s, A, ["m1"], "u2", "/-heart", 11);
   s = applyReaction(s, A, ["m1"], "u3", "/-strong", 12);
-  assert.deepEqual(reactionSummary(s.reactions[reactionKey(A, "m1")]), [
+  assert.deepEqual(summary(), [
     { icon: "/-heart", count: 2, mine: false },
     { icon: "/-strong", count: 1, mine: false },
   ]);
-  assert.deepEqual(
-    reactionSummary(s.reactions[reactionKey(A, "m1")], "u3").map((r) => r.mine),
-    [false, true],
-  );
+  assert.deepEqual(summary("u3").map((r) => r.mine), [false, true]);
   s = applyReaction(s, A, ["m1"], "u2", "/-strong", 20);
   s = applyReaction(s, A, ["m1"], "u2", "/-heart", 15);
-  assert.equal(s.reactions[reactionKey(A, "m1")]!["u2"]!.icon, "/-strong");
+  assert.deepEqual(summary("u2"), [
+    { icon: "/-heart", count: 2, mine: true },
+    { icon: "/-strong", count: 2, mine: true },
+  ]);
+  s = applyReaction(s, A, ["m1"], "u1", ":>", 25);
   s = applyReaction(s, A, ["m1"], "u1", "", 30);
-  assert.equal(s.reactions[reactionKey(A, "m1")]!["u1"], undefined);
+  s = applyReaction(s, A, ["m1"], "u1", "/-heart", 28);
+  assert.deepEqual(summary("u1").filter((r) => r.mine), []);
+  s = applyReaction(s, A, ["m1"], "u1", ":-((", 31);
+  assert.deepEqual(summary("u1").filter((r) => r.mine).map((r) => r.icon), [":-(("]);
+  const unchanged = applyReaction(s, A, ["m1"], "u2", "/-strong", 20);
+  assert.equal(unchanged, s);
   assert.deepEqual(reactionSummary(undefined), []);
 });
+
 
 test("a duplicate message fills in a missing client id", () => {
   let s = addMessages(base(), [msg("a", A, 1)], false);
