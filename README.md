@@ -19,7 +19,7 @@ A terminal client for Zalo personal accounts, built on [zca-js](https://github.c
 
 - Node.js 22 or newer.
 - macOS is the main target. Notifications and opening links use `osascript` and `open`; on Linux they fall back to `notify-send` and `xdg-open`, which are untested. Windows is not supported.
-- Optional on macOS: with [terminal-notifier](https://github.com/julienXX/terminal-notifier) installed (`brew install terminal-notifier`), clicking a notification brings your terminal to the front, and each chat keeps only its latest notification.
+- Optional on macOS: with [terminal-notifier](https://github.com/julienXX/terminal-notifier) installed (`brew install terminal-notifier`), clicking a notification brings your terminal to the front and opens that chat, and each chat keeps only its latest notification.
 - A terminal with true mouse and focus reporting works best (Ghostty, iTerm2, WezTerm, Kitty).
 
 ## Install
@@ -73,6 +73,7 @@ Everything is stored in `~/.config/zalo-tui/`, readable only by you:
 | `credentials.json` | your logged-in session. Anyone with this file can use your account. Delete it to log out. |
 | `settings.json` | notification preferences |
 | `activity.json` | each chat's last activity time and name, used to keep the list order |
+| `open-<pid>` | briefly, while a notification click asks the running app to open a chat |
 | `debug.log` | only with `ZALO_TUI_DEBUG=1`: why each message did or didn't notify (no names or text) |
 
 Set `ZALO_TUI_HOME` to use a different folder.

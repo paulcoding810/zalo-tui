@@ -45,6 +45,7 @@ export type State = {
   notify: NotifyMode;
   notifyGroups: GroupNotify;
   terminalFocused: boolean;
+  openRequest: { key: string; seq: number } | null;
 };
 
 export function threadKey(kind: ThreadKind, id: string): string {
@@ -69,6 +70,7 @@ export function initialState(): State {
     notify: "full",
     notifyGroups: "all",
     terminalFocused: true,
+    openRequest: null,
   };
 }
 

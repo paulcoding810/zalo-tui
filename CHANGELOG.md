@@ -13,7 +13,7 @@ A release is made by adding a section for the new version below and bumping `ver
 ### Changed
 
 - Group messages now notify like direct messages, as in the Zalo app; muted groups stay silent. Press `m` in the chat list to notify only when you're @mentioned (mentions then notify even in muted groups).
-- On macOS, notifications use terminal-notifier when it's installed: clicking one brings the terminal to the front, and each chat keeps only its latest notification.
+- On macOS, notifications use terminal-notifier when it's installed: clicking one brings the terminal to the front and opens that chat, and each chat keeps only its latest notification.
 
 ### Fixed
 

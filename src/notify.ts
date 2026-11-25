@@ -53,13 +53,20 @@ export function notificationContent(m: ChatMessage, state: State): { title: stri
   return { title, body: chars.length > 120 ? chars.slice(0, 119).join("") + "…" : chars.join("") };
 }
 
-export type NotifierEnv = { platform: NodeJS.Platform; terminalNotifier: string | null; terminalApp?: string };
+export type NotifierEnv = {
+  platform: NodeJS.Platform;
+  terminalNotifier: string | null;
+  terminalApp?: string;
+  onClick?: (group: string) => string | null;
+};
 
 export function notificationCommand(title: string, body: string, group: string, env: NotifierEnv): [string, string[]] | null {
   if (env.platform === "darwin" && env.terminalNotifier) {
     const literal = (value: string) => `\\${value || " "}`;
     const args = ["-title", "Zalo", "-subtitle", literal(title), "-message", literal(body), "-group", `zalo-tui:${group}`];
     if (env.terminalApp) args.push("-activate", env.terminalApp);
+    const execute = env.onClick?.(group);
+    if (execute) args.push("-execute", execute);
     return [env.terminalNotifier, args];
   }
   if (env.platform === "darwin") {
@@ -73,6 +80,11 @@ export function notificationCommand(title: string, body: string, group: string, 
 }
 
 let notifierEnv: NotifierEnv | undefined;
+let clickCommand: ((group: string) => string | null) | undefined;
+
+export function setNotificationClick(command: (group: string) => string | null): void {
+  clickCommand = command;
+}
 
 function findOnPath(name: string): string | null {
   for (const dir of (process.env.PATH ?? "").split(delimiter)) {
@@ -92,7 +104,7 @@ function currentEnv(): NotifierEnv {
     terminalNotifier: process.platform === "darwin" ? findOnPath("terminal-notifier") : null,
     terminalApp: process.env.__CFBundleIdentifier || undefined,
   };
-  return notifierEnv;
+  return { ...notifierEnv, onClick: clickCommand };
 }
 
 export function showNotification(title: string, body: string, group: string): void {

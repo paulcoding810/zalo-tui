@@ -73,6 +73,9 @@ test("terminal-notifier is preferred on macOS and groups by chat", () => {
     ["-title", "Zalo", "-subtitle", "\\An", "-message", "\\hi", "-group", "zalo-tui:user:1", "-activate", "com.example.term"],
   ]);
   assert.deepEqual(notificationCommand("An", "", "user:1", { ...withNotifier, terminalApp: undefined })![1].slice(4), ["-message", "\\ ", "-group", "zalo-tui:user:1"]);
+  const clickable = notificationCommand("An", "hi", "user:1", { ...withNotifier, onClick: (key) => `open ${key}` })![1];
+  assert.deepEqual(clickable.slice(-2), ["-execute", "open user:1"]);
+  assert.equal(notificationCommand("An", "hi", "user:1", { ...withNotifier, onClick: () => null })![1].includes("-execute"), false);
   assert.equal(notificationCommand("An", "hi", "user:1", { platform: "darwin", terminalNotifier: null })![0], "osascript");
   assert.equal(notificationCommand("An", "hi", "user:1", { platform: "linux", terminalNotifier: null })![0], "notify-send");
   assert.equal(notificationCommand("An", "hi", "user:1", { platform: "win32", terminalNotifier: null }), null);

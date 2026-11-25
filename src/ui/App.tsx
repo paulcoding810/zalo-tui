@@ -213,6 +213,19 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   }, [popupTargetGone]);
   const selectedMsg = focus === "messages" ? messages[msgIndex === -1 ? messages.length - 1 : msgIndex] : undefined;
 
+  useEffect(() => {
+    const request = state.openRequest;
+    if (!request || !store.getState().threads[request.key]) return;
+    setShowHelp(false);
+    setPicker(null);
+    setDeleting(false);
+    setLinkChoices(null);
+    if (pending) finishPending("cancel");
+    setFiltering(false);
+    setFilter("");
+    open(request.key, true);
+  }, [state.openRequest]);
+
   const flash = (text: string) => {
     setToast(text);
     setTimeout(() => setToast((t) => (t === text ? undefined : t)), 2500);
