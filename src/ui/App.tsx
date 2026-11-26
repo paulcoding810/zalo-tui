@@ -10,7 +10,7 @@ import { messageLinks } from "../format.ts";
 import { reactionIcon, searchReactions } from "../reactions.ts";
 import { nextNotifyMode } from "../notify.ts";
 import { openUrl } from "../open.ts";
-import { openThread, sortedThreads, type Store } from "../store.ts";
+import { openThread, reactionKey, reactionOwners, sortedThreads, type Store } from "../store.ts";
 import { ZaloClient } from "../zalo/client.ts";
 import { loadCredentials, loginWithQR, qrPath, restore, saveCredentials, saveSettings } from "../zalo/session.ts";
 import { ChatList } from "./ChatList.tsx";
@@ -154,6 +154,8 @@ function ErrorScreen({ message }: { message: string }) {
   );
 }
 
+const OWNERS_WIDTH = 40;
+
 export function ChatScreen({ store, client }: { store: Store; client: ZaloClient }) {
   const state = useStoreState();
   const { columns, rows } = useWindowSize();
@@ -171,6 +173,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const [showHelp, setShowHelp] = useState(false);
   const [linkChoices, setLinkChoices] = useState<string[] | null>(null);
   const [linkCursor, setLinkCursor] = useState(0);
+  const [ownersCursor, setOwnersCursor] = useState<number | null>(null);
   const [pending, setPending] = useState<PendingAttachment | null>(null);
   const resolvePending = useRef<((ok: boolean) => void) | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -203,15 +206,21 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const pageSize = Math.max(1, paneHeight - 2);
 
   const msgIndex = messages.findIndex((m) => m.id === selectedMsgId);
-  const popupOpen = picker !== null || deleting || linkChoices !== null;
+  const popupOpen = picker !== null || deleting || linkChoices !== null || ownersCursor !== null;
   const popupTargetGone = popupOpen && msgIndex === -1;
   useEffect(() => {
     if (!popupTargetGone) return;
     setPicker(null);
     setDeleting(false);
     setLinkChoices(null);
+    setOwnersCursor(null);
   }, [popupTargetGone]);
   const selectedMsg = focus === "messages" ? messages[msgIndex === -1 ? messages.length - 1 : msgIndex] : undefined;
+  const owners = selectedMsg && !selectedMsg.recalled ? reactionOwners(state.reactions[reactionKey(selectedMsg.threadKey, selectedMsg.id)], state) : [];
+  const ownersOpen = ownersCursor !== null && owners.length > 0;
+  useEffect(() => {
+    if (ownersCursor !== null && owners.length === 0) setOwnersCursor(null);
+  }, [ownersCursor !== null && owners.length === 0]);
 
   useEffect(() => {
     const request = state.openRequest;
@@ -220,6 +229,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     setPicker(null);
     setDeleting(false);
     setLinkChoices(null);
+    setOwnersCursor(null);
     if (pending) finishPending("cancel");
     setFiltering(false);
     setFilter("");
@@ -294,6 +304,10 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       const index = visibleChoices(frame, linkChoices.length, linkCursor)[at.row];
       const url = index === undefined ? undefined : linkChoices[index];
       if (url) openLink(url);
+      return;
+    }
+    if (ownersOpen) {
+      if (!popupContentAt(popupFrameFor(OWNERS_WIDTH, choicePopupHeight(owners.length)), x, y)) setOwnersCursor(null);
       return;
     }
     if (deleting) {
@@ -404,6 +418,12 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       setShowHelp(false);
       return;
     }
+    if (ownersCursor !== null) {
+      if (key.escape || key.return || input === "w" || input === "q") return setOwnersCursor(null);
+      if (key.upArrow || input === "k") return setOwnersCursor((c) => Math.max(0, (c ?? 0) - 1));
+      if (key.downArrow || input === "j") return setOwnersCursor((c) => Math.min(owners.length - 1, (c ?? 0) + 1));
+      return;
+    }
     if (linkChoices) {
       if (key.escape) return setLinkChoices(null);
       if (key.upArrow || input === "k") return setLinkCursor((c) => Math.max(0, c - 1));
@@ -471,6 +491,13 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       if (input === "e" && selectedMsg) {
         setSelectedMsgId(selectedMsg.id);
         return setPicker({ query: "", cursor: 0 });
+      }
+      if (input === "w" && selectedMsg) {
+        if (owners.length === 0) return flash("no reactions on this message");
+        setSelectedMsgId(selectedMsg.id);
+        setOwnersCursor(0);
+        void client.lookupPeople(owners.map((o) => o.uid));
+        return;
       }
       if (input === "d" && selectedMsg && !selectedMsg.recalled) {
         setSelectedMsgId(selectedMsg.id);
@@ -556,6 +583,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
 
   const deleteFrame = deleting ? popupFrameFor(34, choicePopupHeight(deleteOptions(selectedMsg?.isSelf ?? false).length)) : null;
   const linkFrame = linkChoices ? popupFrameFor(56, choicePopupHeight(linkChoices.length)) : null;
+  const ownersFrame = ownersOpen ? popupFrameFor(OWNERS_WIDTH, choicePopupHeight(owners.length)) : null;
   const reactionFrame = picker
     ? popupFrameFor(40, 14)
     : null;
@@ -602,6 +630,18 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
             cursor={linkCursor}
             choices={linkChoices.map((url, i) => ({ hint: String(i + 1), label: url.replace(/^https?:\/\/(www\.)?/, "") }))}
             footer="↑↓ Enter · 1-9 · Esc"
+          />
+        ) : null}
+        {ownersOpen && ownersFrame ? (
+          <ChoicePopup
+            frame={ownersFrame}
+            title={`Reactions · ${owners.length}`}
+            cursor={Math.min(ownersCursor ?? 0, owners.length - 1)}
+            choices={owners.map((o) => ({
+              label: `${o.name ?? `… ${o.uid.slice(-4)}`}  ${o.icons.map(reactionIcon).join(" ")}`,
+              color: o.mine ? "cyan" : undefined,
+            }))}
+            footer="↑↓ scroll · Esc close"
           />
         ) : null}
         {picker && reactionFrame ? (

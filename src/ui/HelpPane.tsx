@@ -25,6 +25,7 @@ const SECTIONS: [string, [string, string][]][] = [
     [
       ["j/k  g/G", "select message"],
       ["e  (m for more)", "react"],
+      ["w", "who reacted"],
       ["d", "recall or delete"],
       ["o", "open photo, file or link"],
       ["h or Tab · i", "chats · type"],

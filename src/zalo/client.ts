@@ -15,6 +15,8 @@ import {
   markRecalled,
   removeMessage,
   parseKey,
+  personName,
+  rememberPeople,
   setConnection,
   threadKey,
   upsertThreads,
@@ -46,6 +48,7 @@ export class ZaloClient {
   private historyLoaded = new Set<string>();
   private muted = new Map<string, number>();
   private lastNotified = new Map<string, number>();
+  private lookedUp = new Set<string>();
   private selfId = "";
   private deleted = new Set<string>();
   private recalledIds = new Set<string>();
@@ -229,8 +232,10 @@ export class ZaloClient {
       .map((m) => (this.recalledIds.has(m.id) ? { ...m, recalled: true } : m));
     const before = this.store.getState().messages;
     const fresh = converted.filter((m) => !before[m.threadKey]?.some((x) => x.id === m.id));
+    const senders: Record<string, string> = {};
+    for (const m of regular) if (!m.isSelf && m.data.dName) senders[String(m.data.uidFrom)] = m.data.dName;
     this.store.update((s) => {
-      let next = addMessages(s, converted, live);
+      let next = rememberPeople(addMessages(s, converted, live), senders);
       for (const { key, action } of actions) {
         for (const id of action.ids) next = action.kind === "recall" ? markRecalled(next, key, id) : removeMessage(next, key, id);
       }
@@ -255,6 +260,24 @@ export class ZaloClient {
         name = p?.displayName || p?.zaloName;
       }
       if (name) this.store.update((s) => upsertThreads(s, [{ id, kind, name }]));
+    } catch {}
+  }
+
+  async lookupPeople(uids: string[]): Promise<void> {
+    const state = this.store.getState();
+    const missing = [...new Set(uids)].filter(
+      (uid) => /^\d+$/.test(uid) && uid !== state.selfId && !personName(state, uid) && !this.lookedUp.has(uid),
+    );
+    if (missing.length === 0) return;
+    for (const uid of missing) this.lookedUp.add(uid);
+    try {
+      const { changed_profiles } = await this.api.getUserInfo(missing);
+      const names: Record<string, string> = {};
+      for (const [key, p] of Object.entries(changed_profiles ?? {})) {
+        const name = p?.displayName || p?.zaloName;
+        if (name) names[key.split("_")[0]!] = name;
+      }
+      this.store.update((s) => rememberPeople(s, names));
     } catch {}
   }
 

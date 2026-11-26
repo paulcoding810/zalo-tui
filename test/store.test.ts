@@ -10,6 +10,8 @@ import {
   openThread,
   reactionKey,
   reactionSummary,
+  reactionOwners,
+  rememberPeople,
   removeMessage,
   sortedThreads,
   threadKey,
@@ -134,4 +136,27 @@ test("removing a message drops only that message", () => {
   s = removeMessage(s, A, "a");
   assert.deepEqual(s.messages[A]!.map((m) => m.id), ["b"]);
   assert.equal(removeMessage(s, A, "missing"), s);
+});
+
+test("reaction owners list newest first with names from people, friends or nothing", () => {
+  let s = upsertThreads(base(), [{ id: "u2", kind: "user", name: "Friend" }]);
+  s = { ...s, selfId: "me" };
+  s = rememberPeople(s, { u1: "Member\u0007", u3: "u3", u4: "" });
+  s = applyReaction(s, A, ["m1"], "u1", "/-heart", 10);
+  s = applyReaction(s, A, ["m1"], "u1", "/-strong", 30);
+  s = applyReaction(s, A, ["m1"], "u2", ":>", 20);
+  s = applyReaction(s, A, ["m1"], "me", "/-heart", 25);
+  s = applyReaction(s, A, ["m1"], "u3", ":-((", 5);
+  s = applyReaction(s, A, ["m1"], "u5", "/-heart", 1);
+  s = applyReaction(s, A, ["m1"], "u5", "", 2);
+  assert.deepEqual(
+    reactionOwners(s.reactions[reactionKey(A, "m1")], s).map((o) => [o.uid, o.name, o.icons, o.mine]),
+    [
+      ["u1", "Member", ["/-heart", "/-strong"], false],
+      ["me", "You", ["/-heart"], true],
+      ["u2", "Friend", [":>"], false],
+      ["u3", null, [":-(("], false],
+    ],
+  );
+  assert.equal(rememberPeople(s, { u1: "Member" }), s);
 });

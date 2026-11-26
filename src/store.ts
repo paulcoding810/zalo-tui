@@ -39,6 +39,7 @@ export type State = {
   threads: Record<string, Thread>;
   messages: Record<string, ChatMessage[]>;
   reactions: Record<string, Record<string, ReactionEntry>>;
+  people: Record<string, string>;
   unread: Record<string, number>;
   activeKey: string | null;
   connection: Connection;
@@ -64,6 +65,7 @@ export function initialState(): State {
     threads: {},
     messages: {},
     reactions: {},
+    people: {},
     unread: {},
     activeKey: null,
     connection: { state: "idle" },
@@ -174,6 +176,32 @@ export function reactionSummary(entries: Record<string, ReactionEntry> | undefin
     }
   }
   return [...counts.values()].sort((a, b) => b.count - a.count || a.icon.localeCompare(b.icon));
+}
+
+export type ReactionOwner = { uid: string; name: string | null; icons: string[]; ts: number; mine: boolean };
+
+export function personName(state: Pick<State, "people" | "threads">, uid: string): string | null {
+  return state.people[uid] ?? (state.threads[`user:${uid}`]?.placeholder ? null : state.threads[`user:${uid}`]?.name ?? null);
+}
+
+export function reactionOwners(
+  entries: Record<string, ReactionEntry> | undefined,
+  state: Pick<State, "people" | "threads" | "selfId">,
+): ReactionOwner[] {
+  const owners: ReactionOwner[] = [];
+  for (const [uid, { icons }] of Object.entries(entries ?? {})) {
+    const sorted = Object.entries(icons).sort((a, b) => a[1] - b[1]);
+    if (sorted.length === 0) continue;
+    const mine = !!state.selfId && uid === state.selfId;
+    owners.push({ uid, name: mine ? "You" : personName(state, uid), icons: sorted.map(([icon]) => icon), ts: sorted[sorted.length - 1]![1], mine });
+  }
+  return owners.sort((a, b) => b.ts - a.ts || a.uid.localeCompare(b.uid));
+}
+
+export function rememberPeople(state: State, names: Record<string, string>): State {
+  const changed = Object.entries(names).map(([uid, name]) => [uid, cleanText(name)] as const).filter(([uid, name]) => uid && name && name !== uid && state.people[uid] !== name);
+  if (changed.length === 0) return state;
+  return { ...state, people: { ...state.people, ...Object.fromEntries(changed) } };
 }
 
 export function removeMessage(state: State, key: string, msgId: string): State {

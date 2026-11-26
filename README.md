@@ -49,7 +49,7 @@ Type `/help` or press `?` inside the app to see all keys. `zalo-tui --version` p
 | Where | Keys |
 |---|---|
 | Chat list | `j`/`k` or `↑`/`↓` move · `g`/`G` top/bottom · `Ctrl+d`/`Ctrl+u` half page · `/` filter · `l` or `Tab` messages · `Enter` or `i` type · `n` notifications · `m` group alerts: all or @mentions · `r` reconnect |
-| Messages | `j`/`k` select · `e` react · `d` recall or delete · `o` open photo, file or link · `h` or `Tab` chats · `i` type |
+| Messages | `j`/`k` select · `e` react · `w` who reacted · `d` recall or delete · `o` open photo, file or link · `h` or `Tab` chats · `i` type |
 | Message box | `Enter` send · `Esc` back · `←`/`→` move · `Ctrl+a`/`Ctrl+e` start/end · `Ctrl+u` clear |
 | Anywhere | `PgUp`/`PgDn` or wheel scroll · click to open a chat, select a message or type · `Shift`-drag selects text · `Ctrl+C` quit |
 

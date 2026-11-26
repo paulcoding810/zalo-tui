@@ -9,6 +9,7 @@ A release is made by adding a section for the new version below and bumping `ver
 ### Added
 
 - `zalo-tui --version` (or `-v`) prints the installed version.
+- `w` on a message shows who reacted with what, newest first.
 
 ### Changed
 
