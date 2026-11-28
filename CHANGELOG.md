@@ -10,6 +10,7 @@ A release is made by adding a section for the new version below and bumping `ver
 
 - `zalo-tui --version` (or `-v`) prints the installed version.
 - `w` on a message shows who reacted with what, newest first.
+- Search: `/` in the messages pane searches the open chat (`n`/`N` step through matches), and the chat list filter also finds chats by message text. Accents are optional, so "hoa don" finds "hóa đơn". Only loaded messages are searched.
 - `r` replies to the selected message with a quote, and replies from others show the message they quote.
 - Multi-line messages: `Alt+Enter` adds a line, the message box grows up to five lines (the message pane shrinks to make room), and `↑`/`↓` move between lines. `Ctrl+w` deletes a word.
 

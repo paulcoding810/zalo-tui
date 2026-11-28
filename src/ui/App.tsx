@@ -10,6 +10,7 @@ import { messageLinks } from "../format.ts";
 import { reactionIcon, searchReactions } from "../reactions.ts";
 import { nextNotifyMode } from "../notify.ts";
 import { openUrl } from "../open.ts";
+import { fold, searchMessages, stepMatch } from "../search.ts";
 import { dividerTs, openThread, reactionKey, reactionOwners, sortedThreads, type ChatMessage, type Store } from "../store.ts";
 import { ZaloClient } from "../zalo/client.ts";
 import { loadCredentials, loginWithQR, qrPath, restore, saveCredentials, saveSettings } from "../zalo/session.ts";
@@ -208,9 +209,11 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
 
   const [composerRows, setComposerRows] = useState(1);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [search, setSearch] = useState<{ query: string; editing: boolean; key: string | null } | null>(null);
   useEffect(() => setReplyTo(null), [state.activeKey]);
   const replyBar = !!replyTo && !pending;
-  const paneHeight = Math.max(3, rows - 3 - (pending ? 1 : composerRows) - (replyBar ? 1 : 0));
+  const searchBar = !!search && !pending;
+  const paneHeight = Math.max(3, rows - 3 - (pending ? 1 : composerRows) - (replyBar ? 1 : 0) - (searchBar ? 1 : 0));
   const sidebarWidth = Math.max(18, Math.min(32, Math.floor(columns / 3)));
   const pageSize = Math.max(1, paneHeight - 2);
 
@@ -376,6 +379,26 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     return () => clearTimeout(timer);
   }, [highlighted]);
 
+  const matches = useMemo(() => (search?.query.trim() ? searchMessages(messages, search.query) : []), [messages, search?.query]);
+  const jumpTo = (id: string | null) => {
+    if (!id) return flash("no matches");
+    setFollowing(true);
+    setSelectedMsgId(id);
+  };
+  const openFromList = (key: string) => {
+    const name = state.threads[key]?.name ?? "";
+    const query = filter.trim();
+    const hits = query && !fold(name).includes(fold(query)) ? searchMessages(state.messages[key] ?? [], query) : [];
+    if (hits.length === 0) return open(key, true);
+    open(key, false);
+    setFocus("messages");
+    setFilter("");
+    setSearch({ query, editing: false, key });
+    setFollowing(true);
+    setSelectedMsgId(hits[hits.length - 1]!);
+  };
+  useEffect(() => setSearch((s) => (s && s.key !== state.activeKey ? null : s)), [state.activeKey]);
+
   const react = (icon: string) => {
     const target = selectedMsg;
     setPicker(null);
@@ -511,7 +534,26 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       return;
     }
     const half = Math.max(1, Math.floor(paneHeight / 2));
+    if (focus === "messages" && search?.editing) {
+      if (key.escape) return setSearch(null);
+      if (key.return) {
+        if (!search.query.trim()) return setSearch(null);
+        setSearch({ ...search, editing: false });
+        return jumpTo(stepMatch(matches, messages, null, -1));
+      }
+      if (key.backspace || key.delete) return setSearch({ ...search, query: Array.from(search.query).slice(0, -1).join("") });
+      if (input && !key.ctrl && !key.meta && !key.tab) setSearch({ ...search, query: search.query + input });
+      return;
+    }
+    if (focus === "messages" && search) {
+      if (key.escape) return setSearch(null);
+      if (input === "n" || input === "N") {
+        if (matches.length === 0) return flash("no matches");
+        return jumpTo(stepMatch(matches, messages, selectedMsg?.id ?? null, input === "n" ? -1 : 1));
+      }
+    }
     if (focus === "messages") {
+      if (input === "/") return setSearch({ query: "", editing: true, key: state.activeKey });
       const i = msgIndex === -1 ? messages.length - 1 : msgIndex;
       const next = navStep(input, key, i, messages.length, half);
       if (next !== null) {
@@ -561,6 +603,8 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
         setFiltering(false);
       } else if (key.return) {
         setFiltering(false);
+        const t = threads[selected];
+        if (t) openFromList(t.key);
       } else if (key.backspace || key.delete) {
         setFilter((f) => Array.from(f).slice(0, -1).join(""));
       } else if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow) {
@@ -577,7 +621,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     }
     if (key.return) {
       const t = threads[selected];
-      if (t) open(t.key, true);
+      if (t) openFromList(t.key);
       return;
     }
     if (input === "?") return setShowHelp(true);
@@ -687,6 +731,21 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           <ReactionPopup frame={reactionFrame} query={picker.query} cursor={picker.cursor} results={searchReactions(picker.query)} />
         ) : null}
       </Box>
+      {searchBar && search ? (
+        <Text wrap="truncate-end">
+          <Text color="yellow">/ {search.query}</Text>
+          {search.editing ? <Text inverse> </Text> : null}
+          <Text dimColor>
+            {"  "}
+            {search.query.trim()
+              ? matches.length === 0
+                ? "no matches"
+                : `${selectedMsg && matches.includes(selectedMsg.id) ? `${matches.indexOf(selectedMsg.id) + 1} of ` : ""}${matches.length} ${matches.length === 1 ? "match" : "matches"}`
+              : "search this chat"}
+            {search.editing ? " · Enter find · Esc cancel" : " · n older · N newer · Esc done"}
+          </Text>
+        </Text>
+      ) : null}
       {replyBar && replyTo ? (
         <Text wrap="truncate-end">
           <Text color="cyan">↳ replying to {replyTo.isSelf ? "yourself" : replyTo.senderName}: </Text>

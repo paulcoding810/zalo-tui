@@ -18,7 +18,7 @@ const SECTIONS: [string, [string, string][]][] = [
       ["j/k g/G Ctrl+d/u", "move, ends, half page"],
       ["", "highlighting only previews"],
       ["Enter/i · l/Tab", "open and type · messages"],
-      ["/ · Esc", "filter by name · clear"],
+      ["/ · Esc", "filter by name or text · clear"],
       ["n · m · r", "notify · groups · reconnect"],
     ],
   ],
@@ -26,6 +26,7 @@ const SECTIONS: [string, [string, string][]][] = [
     "Messages",
     [
       ["j/k g/G Ctrl+d/u", "select, ends, half page"],
+      ["/ · n · N", "search chat · older · newer"],
       ["r", "reply (Esc in the box cancels)"],
       ["e", "react: 1-6, 0 off, search"],
       ["w", "who reacted"],

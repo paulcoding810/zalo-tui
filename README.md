@@ -48,8 +48,8 @@ Type `/help` or press `?` inside the app to see all keys. `zalo-tui --version` p
 
 | Where | Keys |
 |---|---|
-| Chat list | `j`/`k` or `↑`/`↓` move · `g`/`G` top/bottom · `Ctrl+d`/`Ctrl+u` half page · `/` filter by name (`↑`/`↓` move while typing, `Esc` clears) · `Enter` or `i` open and type · `l` or `Tab` messages · `n` notifications · `m` group alerts: all or @mentions · `r` reconnect |
-| Messages | `j`/`k` select · `g`/`G` top/bottom · `Ctrl+d`/`Ctrl+u` half page · `r` reply · `e` react · `w` who reacted · `d` recall or delete · `o` open photo, file or link · `Enter` or `i` type · `h`, `Esc` or `Tab` chats |
+| Chat list | `j`/`k` or `↑`/`↓` move · `g`/`G` top/bottom · `Ctrl+d`/`Ctrl+u` half page · `/` filter by name or message text (`↑`/`↓` move while typing, `Enter` opens at the match, `Esc` clears) · `Enter` or `i` open and type · `l` or `Tab` messages · `n` notifications · `m` group alerts: all or @mentions · `r` reconnect |
+| Messages | `j`/`k` select · `g`/`G` top/bottom · `Ctrl+d`/`Ctrl+u` half page · `/` search this chat, then `n`/`N` older/newer match · `r` reply · `e` react · `w` who reacted · `d` recall or delete · `o` open photo, file or link · `Enter` or `i` type · `h`, `Esc` or `Tab` chats |
 | React popup | `1`–`6` quick reactions (or click them) · type to search all · `↑`/`↓` `Enter` pick · `0` remove yours · `Esc` close |
 | Message box | `Enter` send · `Alt+Enter` new line · `Esc` back · arrows move · `Ctrl+a`/`Ctrl+e` or `Home`/`End` start/end · `Ctrl+w` delete word · `Ctrl+u` delete to start |
 | Anywhere | `PgUp`/`PgDn` or wheel scroll messages (the wheel over the chat list moves the selection) · click to open a chat, select a message or type · `Shift`-drag selects text · `Ctrl+C` quit |
@@ -88,6 +88,7 @@ Set `ZALO_TUI_HOME` to use a different folder.
 - On connect, Zalo returns only recent messages (usually the last few days). Older history isn't available.
 - Stickers show as `[sticker]` and can't be sent. Voice, video and polls show as placeholders.
 - Clipboard images can't be pasted; save them as a file first.
+- Search only covers messages the app has loaded; Zalo has no message search API.
 
 ## Development
 

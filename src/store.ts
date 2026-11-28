@@ -1,4 +1,5 @@
 import { cleanText } from "./format.ts";
+import { fold, messageMatches } from "./search.ts";
 import type { GroupNotify, NotifyMode } from "./notify.ts";
 
 export type ThreadKind = "user" | "group";
@@ -317,8 +318,10 @@ export function applyActivity(state: State, activity: Activity): State {
 }
 
 export function sortedThreads(state: State, filter = ""): Thread[] {
-  const q = filter.trim().toLowerCase();
-  const list = Object.values(state.threads).filter((t) => !q || t.name.toLowerCase().includes(q));
+  const q = fold(filter.trim());
+  const list = Object.values(state.threads).filter(
+    (t) => !q || fold(t.name).includes(q) || (state.messages[t.key] ?? []).some((m) => messageMatches(m, filter)),
+  );
   return list.sort((a, b) => {
     if (a.lastTs !== b.lastTs) return b.lastTs - a.lastTs;
     return a.name.localeCompare(b.name);
