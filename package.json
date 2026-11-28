@@ -1,6 +1,6 @@
 {
   "name": "zalo-tui",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A terminal client for Zalo personal accounts, built on zca-js",
   "keywords": [
     "zalo",
