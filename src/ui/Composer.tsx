@@ -12,6 +12,7 @@ type Props = {
   error?: string;
   width: number;
   maxRows: number;
+  maxHeight: number;
   onHeight: (rows: number) => void;
   members?: Member[] | null;
   onMentionStart?: () => void;
@@ -19,7 +20,7 @@ type Props = {
   onSubmit: (text: string, picks: Member[]) => Promise<boolean>;
 };
 
-export function Composer({ draftKey, active, enabled, error, width, maxRows, onHeight, members, onMentionStart, onSuggesting, onSubmit }: Props) {
+export function Composer({ draftKey, active, enabled, error, width, maxRows, maxHeight, onHeight, members, onMentionStart, onSuggesting, onSubmit }: Props) {
   const [chars, setChars] = useState<string[]>([]);
   const [cursor, setCursor] = useState(0);
   const [picks, setPicks] = useState<Member[]>([]);
@@ -50,13 +51,20 @@ export function Composer({ draftKey, active, enabled, error, width, maxRows, onH
   };
 
   const lines = composerLines(chars, width - 3);
-  const view = composerWindow(lines, cursor, maxRows);
   const cursorRow = cursorLine(lines, cursor);
 
   const query = members && active ? mentionQuery(chars, cursor) : null;
   const suggestions = query && dismissed !== query.start ? filterMembers([...members!, EVERYONE], query.query) : [];
-  const suggesting = suggestions.length > 0;
   const chosen = Math.min(suggestion, Math.max(0, suggestions.length - 1));
+  const status = sending ? " sending…" : error ? ` ${error}` : "";
+  const budget = Math.max(1, maxHeight - (status ? 1 : 0));
+  const suggestionRows = Math.min(suggestions.length, Math.max(0, budget - 1));
+  const suggestionTop = Math.min(Math.max(0, chosen - suggestionRows + 1), Math.max(0, suggestions.length - suggestionRows));
+  const suggesting = suggestionRows > 0;
+  const view = composerWindow(lines, cursor, Math.max(1, Math.min(maxRows, budget - suggestionRows)));
+  useEffect(() => {
+    if (!query) setDismissed(null);
+  }, [!!query]);
   useEffect(() => {
     if (query) onMentionStart?.();
   }, [query?.start]);
@@ -116,7 +124,7 @@ export function Composer({ draftKey, active, enabled, error, width, maxRows, onH
         return setCursor(start);
       }
       if (key.upArrow || key.downArrow) {
-        const next = verticalMove(lines, cursor, key.upArrow ? -1 : 1);
+        const next = verticalMove(lines, chars, cursor, key.upArrow ? -1 : 1);
         if (next !== null) setCursor(next);
         return;
       }
@@ -132,21 +140,23 @@ export function Composer({ draftKey, active, enabled, error, width, maxRows, onH
     { isActive: active && !sending },
   );
 
-  const status = sending ? " sending…" : error ? ` ${error}` : "";
   const placeholder = chars.length === 0 && !active;
   const visibleRows = placeholder ? 1 : view.rows;
-  const height = visibleRows + (status ? 1 : 0) + suggestions.length;
+  const height = visibleRows + (status ? 1 : 0) + suggestionRows;
   useEffect(() => onHeight(height), [height]);
 
   return (
     <Box flexDirection="column">
-      {suggestions.map((m, i) => (
-        <Text key={m.uid} wrap="truncate-end">
-          <Text color="cyan">{i === chosen ? "▶ " : "  "}</Text>
-          <Text inverse={i === chosen}>@{m.name}</Text>
-          {i === 0 ? <Text dimColor>{"  ↑↓ Enter/Tab pick · Esc"}</Text> : null}
-        </Text>
-      ))}
+      {suggestions.slice(suggestionTop, suggestionTop + suggestionRows).map((m, j) => {
+        const i = suggestionTop + j;
+        return (
+          <Text key={m.uid} wrap="truncate-end">
+            <Text color="cyan">{i === chosen ? "▶ " : "  "}</Text>
+            <Text inverse={i === chosen}>@{m.name}</Text>
+            {j === 0 ? <Text dimColor>{"  ↑↓ Enter/Tab pick · Esc"}</Text> : null}
+          </Text>
+        );
+      })}
       {placeholder ? (
         <Text wrap="truncate-end">
           <Text color="gray">{"> "}</Text>

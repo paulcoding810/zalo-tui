@@ -3,22 +3,20 @@ import assert from "node:assert/strict";
 import { composerLines, composerWindow, cursorLine, verticalMove, wordStart } from "../src/ui/composerLayout.ts";
 
 const chars = (s: string) => Array.from(s);
+const spans = (s: string, w: number) => composerLines(chars(s), w).map(({ start, end }) => [start, end]);
 
 test("lines break at newlines and wrap at the width", () => {
-  assert.deepEqual(composerLines(chars("ab\ncdefg"), 3), [
-    { start: 0, end: 2 },
-    { start: 3, end: 6 },
-    { start: 6, end: 8 },
-  ]);
-  assert.deepEqual(composerLines(chars("abc"), 3), [
-    { start: 0, end: 3 },
-    { start: 3, end: 3 },
-  ]);
-  assert.deepEqual(composerLines([], 5), [{ start: 0, end: 0 }]);
-  assert.deepEqual(composerLines(chars("a\n"), 5), [
-    { start: 0, end: 1 },
-    { start: 2, end: 2 },
-  ]);
+  assert.deepEqual(spans("ab\ncdefg", 3), [[0, 2], [3, 6], [6, 8]]);
+  assert.deepEqual(spans("abc", 3), [[0, 3], [3, 3]]);
+  assert.deepEqual(spans("", 5), [[0, 0]]);
+  assert.deepEqual(spans("a\n", 5), [[0, 1], [2, 2]]);
+  assert.deepEqual(composerLines(chars("abcdef"), 3).map((l) => l.soft), [true, true, false]);
+});
+
+test("wide characters take two columns", () => {
+  assert.deepEqual(spans("😀😀😀", 4), [[0, 2], [2, 3]]);
+  assert.deepEqual(spans("a😀b", 2), [[0, 1], [1, 2], [2, 3]]);
+  assert.deepEqual(spans("tiếng Việt", 20), [[0, 10]]);
 });
 
 test("the cursor sits on the right line at breaks", () => {
@@ -35,12 +33,20 @@ test("the window keeps the cursor visible", () => {
   assert.deepEqual(composerWindow(composerLines([], 10), 0, 5), { top: 0, rows: 1 });
 });
 
-test("up and down keep the column where possible", () => {
-  const lines = composerLines(chars("hello\nhi\nworld"), 20);
-  assert.equal(verticalMove(lines, 4, 1), 8);
-  assert.equal(verticalMove(lines, 8, 1), 11);
-  assert.equal(verticalMove(lines, 1, -1), null);
-  assert.equal(verticalMove(lines, 13, -1), 8);
+test("up and down keep the column and never skip or stick at full lines", () => {
+  const move = (s: string, w: number, cursor: number, dir: -1 | 1) => {
+    const c = chars(s);
+    return verticalMove(composerLines(c, w), c, cursor, dir);
+  };
+  assert.equal(move("hello\nhi\nworld", 20, 4, 1), 8);
+  assert.equal(move("hello\nhi\nworld", 20, 8, 1), 11);
+  assert.equal(move("hello\nhi\nworld", 20, 1, -1), null);
+  assert.equal(move("hello\nhi\nworld", 20, 13, -1), 8);
+  const a = "aaaaaaaaaabbbbbbbbbb\ncc";
+  assert.equal(move(a, 10, 20, -1), 9);
+  const d = "dddddddddd\neeeeeeeeeeffffffffff";
+  assert.equal(move(d, 10, 10, 1), 20);
+  assert.equal(move("😀😀\nabcd", 10, 2, 1), 7);
 });
 
 test("word deletion stops at the previous word start", () => {

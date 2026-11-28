@@ -55,7 +55,7 @@ function formatSize(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-type PendingAttachment = { key: string; text: string; request: AttachmentRequest; size: number };
+type PendingAttachment = { key: string; text: string; picks: Member[]; request: AttachmentRequest; size: number };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -213,8 +213,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const [mentionOpen, setMentionOpen] = useState(false);
   const [memberIds, setMemberIds] = useState<Record<string, string[]>>({});
   const [search, setSearch] = useState<{ query: string; editing: boolean; key: string | null } | null>(null);
-  useEffect(() => setReplyTo(null), [state.activeKey]);
-  const replyBar = !!replyTo && !pending;
+  const replyBar = !!replyTo && replyTo.threadKey === state.activeKey && !pending;
   const searchBar = !!search && !pending;
   const paneHeight = Math.max(3, rows - 3 - (pending ? 1 : composerRows) - (replyBar ? 1 : 0) - (searchBar ? 1 : 0));
   const sidebarWidth = Math.max(18, Math.min(32, Math.floor(columns / 3)));
@@ -293,6 +292,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     if (popupOpen) return;
     if (x <= sidebarWidth) {
       if (filtering || threads.length === 0) return;
+      if (focus !== "list") setFocus("list");
       setSelectedKey(threads[Math.min(threads.length - 1, Math.max(0, selected + direction))]?.key ?? null);
     } else {
       scrollBy(direction < 0 ? WHEEL_LINES : -WHEEL_LINES);
@@ -369,10 +369,13 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   useEffect(() => onClick((e) => click.current(e.x, e.y)), []);
 
   const activeUnread = state.activeKey ? (state.unread[state.activeKey] ?? 0) : 0;
+  const lastFocus = useRef(focus);
   useEffect(() => {
+    const entered = focus !== "list" && lastFocus.current === "list";
+    lastFocus.current = focus;
     const s = store.getState();
     if (!s.activeKey || !s.terminalFocused) return;
-    if ((focus !== "list" && !s.activeRead) || (s.activeRead && activeUnread > 0)) store.update((x) => openThread(x, s.activeKey!));
+    if ((entered && !s.activeRead) || (s.activeRead && activeUnread > 0)) store.update((x) => openThread(x, s.activeKey!));
   }, [focus, state.activeKey, state.activeRead, state.terminalFocused, activeUnread]);
 
   const highlighted = threads[selected]?.key ?? null;
@@ -470,7 +473,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     resolvePending.current = null;
     if (!p || !resolve) return;
     if (action === "cancel") return resolve(false);
-    void (action === "send" ? sendAttachmentTo(p.key, p.request) : sendTextTo(p.key, p.text)).then(resolve);
+    void (action === "send" ? sendAttachmentTo(p.key, p.request) : sendTextTo(p.key, p.text, p.picks)).then(resolve);
   };
 
   const removeSelected = (mode: "recall" | "delete") => {
@@ -557,7 +560,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     }
     if (focus === "input") {
       if (key.escape) {
-        if (replyTo) return setReplyTo(null);
+        if (replyBar) return setReplyTo(null);
         setFocus(returnFocus);
       }
       return;
@@ -689,7 +692,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     if (!parsed.confirm) return sendAttachmentTo(key, parsed);
     return new Promise<boolean>((resolve) => {
       resolvePending.current = resolve;
-      setPending({ key, text, request: parsed, size: statSync(parsed.path).size });
+      setPending({ key, text, picks, request: parsed, size: statSync(parsed.path).size });
     });
   };
 
@@ -775,10 +778,10 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           </Text>
         </Text>
       ) : null}
-      {replyBar && replyTo ? (
+      {replyBar ? (
         <Text wrap="truncate-end">
-          <Text color="cyan">↳ replying to {replyTo.isSelf ? "yourself" : replyTo.senderName}: </Text>
-          <Text dimColor>{replyTo.text.replace(/\s+/g, " ")}</Text>
+          <Text color="cyan">↳ replying to {replyTo!.isSelf ? "yourself" : replyTo!.senderName}: </Text>
+          <Text dimColor>{replyTo!.text.replace(/\s+/g, " ")}</Text>
         </Text>
       ) : null}
       {pending ? (
@@ -795,7 +798,8 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           enabled={!!active}
           error={sendError}
           width={columns}
-          maxRows={Math.max(1, Math.min(5, rows - 8))}
+          maxRows={5}
+          maxHeight={Math.max(1, rows - 6 - (replyBar ? 1 : 0) - (searchBar ? 1 : 0))}
           onHeight={setComposerRows}
           members={members}
           onMentionStart={loadMembers}
