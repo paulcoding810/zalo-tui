@@ -13,6 +13,7 @@ type Line = {
   segments: Segment[];
   reactions?: ReactionCount[];
   dim: boolean;
+  divider?: boolean;
 };
 
 type Props = {
@@ -28,9 +29,17 @@ export function buildLines(
   width: number,
   reactions: Record<string, Record<string, ReactionEntry>> = {},
   selfId = "",
+  dividerTs: number | null = null,
 ): Line[] {
   const lines: Line[] = [];
+  let dividerDone = dividerTs === null;
   for (const m of messages) {
+    if (!dividerDone && !m.isSelf && m.ts > dividerTs!) {
+      dividerDone = true;
+      const label = " new messages ";
+      const side = Math.max(2, Math.floor((width - label.length) / 2));
+      lines.push({ key: "divider", msgId: "", time: "", sender: "", isSelf: false, indent: 0, segments: [{ text: `${"─".repeat(side)}${label}${"─".repeat(side)}` }], dim: false, divider: true });
+    }
     const time = formatTime(m.ts);
     const sender = m.isSelf ? "me" : m.senderName;
     const prefixLength = Array.from(`${time} ${sender}: `).length;
@@ -77,14 +86,15 @@ export function paneLayout(options: {
   messages: ChatMessage[];
   reactions: Record<string, Record<string, ReactionEntry>>;
   selfId: string;
+  dividerTs?: number | null;
   scroll: number;
   selectedId: string | null;
   followSelection: boolean;
   width: number;
   height: number;
 }): PaneLayout {
-  const { messages, reactions, selfId, scroll, selectedId, followSelection, width, height } = options;
-  const lines = buildLines(messages, width - 4, reactions, selfId);
+  const { messages, reactions, selfId, dividerTs = null, scroll, selectedId, followSelection, width, height } = options;
+  const lines = buildLines(messages, width - 4, reactions, selfId, dividerTs);
   const max = Math.max(0, lines.length - height);
   let offset = Math.min(scroll, max);
   const first = selectedId && followSelection ? lines.findIndex((l) => l.msgId === selectedId) : -1;
@@ -96,7 +106,7 @@ export function paneLayout(options: {
   }
   const visible = lines.slice(Math.max(0, lines.length - height - offset), lines.length - offset);
   const rows: (string | null)[] = Array.from({ length: height }, () => null);
-  visible.forEach((l, i) => (rows[height - visible.length + i] = l.msgId));
+  visible.forEach((l, i) => (rows[height - visible.length + i] = l.msgId || null));
   return { lines, visible, offset, max, rows };
 }
 
@@ -113,7 +123,7 @@ export function MessagePane({ thread, layout, selectedId, focused, height }: Pro
         {!thread ? <Text dimColor>Pick a chat on the left and press Enter.</Text> : null}
         {thread && lines.length === 0 ? <Text dimColor>No messages loaded yet.</Text> : null}
         {visible.map((l) => (
-          <Text key={l.key} wrap="truncate-end" dimColor={l.dim} inverse={l.msgId === selectedId}>
+          <Text key={l.key} wrap="truncate-end" dimColor={l.dim} color={l.divider ? "red" : undefined} inverse={!!l.msgId && l.msgId === selectedId}>
             {l.time ? <Text dimColor>{l.time} </Text> : null}
             {l.sender ? <Text color={l.isSelf ? "green" : "cyan"}>{l.sender}: </Text> : null}
             {" ".repeat(l.indent)}

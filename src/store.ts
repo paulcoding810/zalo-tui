@@ -41,13 +41,18 @@ export type State = {
   reactions: Record<string, Record<string, ReactionEntry>>;
   people: Record<string, string>;
   unread: Record<string, number>;
+  read: ReadState;
+  divider: { key: string; ts: number } | null;
   activeKey: string | null;
+  activeRead: boolean;
   connection: Connection;
   notify: NotifyMode;
   notifyGroups: GroupNotify;
   terminalFocused: boolean;
   openRequest: { key: string; seq: number } | null;
 };
+
+export type ReadState = { since: number; chats: Record<string, number> };
 
 export function threadKey(kind: ThreadKind, id: string): string {
   return `${kind}:${id}`;
@@ -67,7 +72,10 @@ export function initialState(): State {
     reactions: {},
     people: {},
     unread: {},
+    read: { since: Infinity, chats: {} },
+    divider: null,
     activeKey: null,
+    activeRead: false,
     connection: { state: "idle" },
     notify: "full",
     notifyGroups: "all",
@@ -86,11 +94,47 @@ export function upsertThreads(state: State, threads: Omit<Thread, "key" | "lastT
   return { ...state, threads: next };
 }
 
-export function addMessages(state: State, incoming: ChatMessage[], countUnread: boolean): State {
+export function readPoint(state: Pick<State, "read" | "messages">, key: string): number {
+  let point = state.read.chats[key] ?? state.read.since;
+  for (const m of state.messages[key] ?? []) if (m.isSelf && m.ts > point) point = m.ts;
+  return point;
+}
+
+function recount(state: State, keys: Iterable<string>): State {
+  let unread = state.unread;
+  for (const key of keys) {
+    const point = readPoint(state, key);
+    const count = (state.messages[key] ?? []).filter((m) => !m.isSelf && !m.recalled && m.ts > point).length;
+    if ((unread[key] ?? 0) === count) continue;
+    if (unread === state.unread) unread = { ...unread };
+    if (count > 0) unread[key] = count;
+    else delete unread[key];
+  }
+  return unread === state.unread ? state : { ...state, unread };
+}
+
+function newestTs(state: State, key: string): number {
+  const list = state.messages[key] ?? [];
+  return list.length > 0 ? list[list.length - 1]!.ts : 0;
+}
+
+export function markRead(state: State, key: string, now: number = Date.now()): State {
+  const ts = Math.max(state.read.chats[key] ?? 0, newestTs(state, key), now);
+  const next = { ...state, read: { ...state.read, chats: { ...state.read.chats, [key]: ts } } };
+  return recount(next, [key]);
+}
+
+export function applyReadState(state: State, read: ReadState): State {
+  const chats: Record<string, number> = {};
+  for (const [key, ts] of Object.entries(read.chats ?? {})) if (typeof ts === "number" && key.includes(":")) chats[key] = ts;
+  const since = typeof read.since === "number" ? read.since : Date.now();
+  return recount({ ...state, read: { since, chats } }, Object.keys(state.messages));
+}
+
+export function addMessages(state: State, incoming: ChatMessage[]): State {
   if (incoming.length === 0) return state;
   const messages = { ...state.messages };
   const threads = { ...state.threads };
-  const unread = { ...state.unread };
   const touched = new Set<string>();
 
   for (const raw of incoming) {
@@ -113,23 +157,21 @@ export function addMessages(state: State, incoming: ChatMessage[], countUnread: 
     } else if (msg.ts > thread.lastTs) {
       threads[msg.threadKey] = { ...thread, lastTs: msg.ts };
     }
-
-    if (countUnread && !msg.isSelf && msg.threadKey !== state.activeKey) {
-      unread[msg.threadKey] = (unread[msg.threadKey] ?? 0) + 1;
-    }
   }
 
   for (const key of touched) messages[key]!.sort((a, b) => a.ts - b.ts);
-  return { ...state, messages, threads, unread };
+  let next: State = { ...state, messages, threads };
+  if (state.activeKey && state.activeRead && state.terminalFocused && touched.has(state.activeKey)) next = markRead(next, state.activeKey, 0);
+  return recount(next, touched);
 }
 
 export function markRecalled(state: State, key: string, msgId: string): State {
   const list = state.messages[key];
   if (!list || !list.some((m) => m.id === msgId)) return state;
-  return {
+  return recount({
     ...state,
     messages: { ...state.messages, [key]: list.map((m) => (m.id === msgId ? { ...m, recalled: true } : m)) },
-  };
+  }, [key]);
 }
 
 export function reactionKey(threadKey: string, msgId: string): string {
@@ -207,13 +249,21 @@ export function rememberPeople(state: State, names: Record<string, string>): Sta
 export function removeMessage(state: State, key: string, msgId: string): State {
   const list = state.messages[key];
   if (!list || !list.some((m) => m.id === msgId)) return state;
-  return { ...state, messages: { ...state.messages, [key]: list.filter((m) => m.id !== msgId) } };
+  return recount({ ...state, messages: { ...state.messages, [key]: list.filter((m) => m.id !== msgId) } }, [key]);
 }
 
-export function openThread(state: State, key: string): State {
-  const unread = { ...state.unread };
-  delete unread[key];
-  return { ...state, activeKey: key, unread };
+export function openThread(state: State, key: string, read = true): State {
+  const opened = { ...state, activeKey: key, activeRead: read };
+  if (!read) return opened;
+  const divider = state.unread[key] ? { key, ts: readPoint(state, key) } : state.divider?.key === key ? state.divider : null;
+  return markRead({ ...opened, divider }, key);
+}
+
+export function dividerTs(state: State): number | null {
+  const key = state.activeKey;
+  if (!key) return null;
+  if (state.divider?.key === key) return state.divider.ts;
+  return state.unread[key] ? readPoint(state, key) : null;
 }
 
 export function setConnection(state: State, connection: Connection): State {

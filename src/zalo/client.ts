@@ -4,13 +4,14 @@ import type { AttachmentRequest } from "../attachment.ts";
 import { attachmentUrl, cleanText, messageText } from "../format.ts";
 import { parseReactionContent } from "../reactions.ts";
 import { metaAction, type MetaAction } from "./meta.ts";
-import { loadActivity, saveActivity } from "./session.ts";
+import { loadActivity, loadReadState, saveActivity, saveReadState } from "./session.ts";
 import { mutedUntil, notificationContent, notifySkipReason, showNotification } from "../notify.ts";
 import { debugLog } from "../debug.ts";
 import {
   activitySnapshot,
   addMessages,
   applyActivity,
+  applyReadState,
   applyReaction,
   markRecalled,
   removeMessage,
@@ -56,6 +57,7 @@ export class ZaloClient {
   private historyPending = new Set<ThreadType>();
   private reactionTimer: NodeJS.Timeout | null = null;
   private savedActivity = "";
+  private savedRead = "";
   private saveTimer: NodeJS.Timeout | null = null;
   private unsubscribe: (() => void) | null = null;
 
@@ -102,6 +104,8 @@ export class ZaloClient {
     const activity = loadActivity();
     this.savedActivity = JSON.stringify(activity);
     this.store.update((s) => applyActivity(s, activity));
+    const read = loadReadState() ?? { since: Date.now(), chats: {} };
+    this.store.update((s) => applyReadState(s, read));
     for (const t of Object.values(this.store.getState().threads)) if (t.placeholder) void this.resolveName(t.key);
     this.unsubscribe = this.store.subscribe(() => this.scheduleSave());
     this.attachListener();
@@ -130,12 +134,21 @@ export class ZaloClient {
   }
 
   private saveNow(): void {
-    const json = JSON.stringify(activitySnapshot(this.store.getState()));
-    if (json === this.savedActivity) return;
-    try {
-      saveActivity(JSON.parse(json));
-      this.savedActivity = json;
-    } catch {}
+    const state = this.store.getState();
+    const json = JSON.stringify(activitySnapshot(state));
+    if (json !== this.savedActivity) {
+      try {
+        saveActivity(JSON.parse(json));
+        this.savedActivity = json;
+      } catch {}
+    }
+    const read = JSON.stringify(state.read);
+    if (read !== this.savedRead && Number.isFinite(state.read.since)) {
+      try {
+        saveReadState(state.read);
+        this.savedRead = read;
+      } catch {}
+    }
   }
 
   private async loadMuted(): Promise<void> {
@@ -235,7 +248,7 @@ export class ZaloClient {
     const senders: Record<string, string> = {};
     for (const m of regular) if (!m.isSelf && m.data.dName) senders[String(m.data.uidFrom)] = m.data.dName;
     this.store.update((s) => {
-      let next = rememberPeople(addMessages(s, converted, live), senders);
+      let next = rememberPeople(addMessages(s, converted), senders);
       for (const { key, action } of actions) {
         for (const id of action.ids) next = action.kind === "recall" ? markRecalled(next, key, id) : removeMessage(next, key, id);
       }
@@ -312,7 +325,7 @@ export class ZaloClient {
     const msgId = result.message?.msgId;
     if (msgId === undefined) throw new Error("Zalo did not accept the message");
     this.store.update((s) =>
-      addMessages(s, [{ id: String(msgId), threadKey: key, senderName: "me", isSelf: true, ts: Date.now(), text }], false),
+      addMessages(s, [{ id: String(msgId), threadKey: key, senderName: "me", isSelf: true, ts: Date.now(), text }]),
     );
   }
 
@@ -340,7 +353,7 @@ export class ZaloClient {
     }
     const caption = request.kind === "photo" && request.caption ? ` ${request.caption}` : "";
     local.push({ id: String(sent), threadKey: key, senderName: "me", isSelf: true, ts: now, text: `[${request.kind}] ${name}${caption}` });
-    this.store.update((s) => addMessages(s, local, false));
+    this.store.update((s) => addMessages(s, local));
   }
 
   private destination(message: ChatMessage) {

@@ -10,7 +10,7 @@ import { messageLinks } from "../format.ts";
 import { reactionIcon, searchReactions } from "../reactions.ts";
 import { nextNotifyMode } from "../notify.ts";
 import { openUrl } from "../open.ts";
-import { openThread, reactionKey, reactionOwners, sortedThreads, type Store } from "../store.ts";
+import { dividerTs, openThread, reactionKey, reactionOwners, sortedThreads, type Store } from "../store.ts";
 import { ZaloClient } from "../zalo/client.ts";
 import { loadCredentials, loginWithQR, qrPath, restore, saveCredentials, saveSettings } from "../zalo/session.ts";
 import { ChatList } from "./ChatList.tsx";
@@ -241,11 +241,15 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     setTimeout(() => setToast((t) => (t === text ? undefined : t)), 2500);
   };
 
-  const open = (key: string, focusInput: boolean) => {
+  const open = (key: string, focusInput: boolean, read = true) => {
     setSelectedKey(key);
     if (focusInput) setFocus("input");
-    if (key === store.getState().activeKey) return;
-    store.update((s) => openThread(s, key));
+    const current = store.getState();
+    if (key === current.activeKey) {
+      if (read && !current.activeRead) store.update((s) => openThread(s, key));
+      return;
+    }
+    store.update((s) => openThread(s, key, read));
     setScroll(0);
     setFollowing(true);
     setSelectedMsgId(null);
@@ -257,6 +261,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     messages,
     reactions: state.reactions,
     selfId: state.selfId,
+    dividerTs: dividerTs(state),
     scroll,
     selectedId: selectedMsg?.id ?? null,
     followSelection: follow,
@@ -348,10 +353,17 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   };
   useEffect(() => onClick((e) => click.current(e.x, e.y)), []);
 
+  const activeUnread = state.activeKey ? (state.unread[state.activeKey] ?? 0) : 0;
+  useEffect(() => {
+    const s = store.getState();
+    if (!s.activeKey || !s.terminalFocused) return;
+    if ((focus !== "list" && !s.activeRead) || (s.activeRead && activeUnread > 0)) store.update((x) => openThread(x, s.activeKey!));
+  }, [focus, state.activeKey, state.activeRead, state.terminalFocused, activeUnread]);
+
   const highlighted = threads[selected]?.key ?? null;
   useEffect(() => {
     if (!highlighted || highlighted === store.getState().activeKey) return;
-    const timer = setTimeout(() => open(highlighted, false), PREVIEW_DELAY_MS);
+    const timer = setTimeout(() => open(highlighted, false, false), PREVIEW_DELAY_MS);
     return () => clearTimeout(timer);
   }, [highlighted]);
 

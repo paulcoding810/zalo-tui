@@ -2,7 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync }
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { GroupNotify, NotifyMode } from "../notify.ts";
-import type { Activity } from "../store.ts";
+import type { Activity, ReadState } from "../store.ts";
 import { imageSizeFromFile } from "image-size/fromFile";
 import { statSync } from "node:fs";
 import { Zalo, type API, type Credentials, type LoginQRCallback } from "zca-js";
@@ -40,6 +40,22 @@ export function loadActivity(): Activity {
 export function saveActivity(activity: Activity): void {
   ensureStateDir();
   writeFileSync(activityPath, JSON.stringify(activity), { mode: 0o600 });
+}
+
+const readPath = join(stateDir, "read.json");
+
+export function loadReadState(): ReadState | null {
+  try {
+    const value = JSON.parse(readFileSync(readPath, "utf8")) as ReadState;
+    return value && typeof value.since === "number" && value.chats && typeof value.chats === "object" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveReadState(read: ReadState): void {
+  ensureStateDir();
+  writeFileSync(readPath, JSON.stringify(read), { mode: 0o600 });
 }
 
 export function ensureStateDir(): void {

@@ -18,6 +18,7 @@ A release is made by adding a section for the new version below and bumping `ver
 
 ### Fixed
 
+- Unread counts are no longer lost by moving through the chat list: a highlighted chat is only previewed, and it counts as read once you open it (Enter, `l`, a click, or typing). Messages that arrived while the app was closed now count as unread, and a "new messages" line marks where they start.
 - A message now shows every reaction a person adds, not only their latest one.
 
 ## [0.1.0] - 2026-11-24

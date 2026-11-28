@@ -72,6 +72,7 @@ Everything is stored in `~/.config/zalo-tui/`, readable only by you:
 |---|---|
 | `credentials.json` | your logged-in session. Anyone with this file can use your account. Delete it to log out. |
 | `settings.json` | notification preferences |
+| `read.json` | how far you've read in each chat, so unread counts survive restarts |
 | `activity.json` | each chat's last activity time and name, used to keep the list order |
 | `open-<pid>` | briefly, while a notification click asks the running app to open a chat |
 | `debug.log` | only with `ZALO_TUI_DEBUG=1`: why each message did or didn't notify (no names or text) |
