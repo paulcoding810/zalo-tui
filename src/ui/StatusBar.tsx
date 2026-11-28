@@ -22,7 +22,7 @@ export function StatusBar({ connection, selfName, focus, notify, notifyGroups, t
       ? "j/k move · Enter open · / filter · ? help"
       : focus === "input"
         ? "Enter send · Alt+Enter new line · Esc back"
-        : "e react · w who · d delete · o open · ? help";
+        : "r reply · e react · w who · d delete · o open · ? help";
   return (
     <Text wrap="truncate-end">
       <Text color={COLORS[connection.state]}>● {label}</Text>

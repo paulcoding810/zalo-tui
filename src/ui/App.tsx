@@ -10,7 +10,7 @@ import { messageLinks } from "../format.ts";
 import { reactionIcon, searchReactions } from "../reactions.ts";
 import { nextNotifyMode } from "../notify.ts";
 import { openUrl } from "../open.ts";
-import { dividerTs, openThread, reactionKey, reactionOwners, sortedThreads, type Store } from "../store.ts";
+import { dividerTs, openThread, reactionKey, reactionOwners, sortedThreads, type ChatMessage, type Store } from "../store.ts";
 import { ZaloClient } from "../zalo/client.ts";
 import { loadCredentials, loginWithQR, qrPath, restore, saveCredentials, saveSettings } from "../zalo/session.ts";
 import { ChatList } from "./ChatList.tsx";
@@ -207,7 +207,10 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const messages = state.activeKey ? state.messages[state.activeKey] ?? [] : [];
 
   const [composerRows, setComposerRows] = useState(1);
-  const paneHeight = Math.max(3, rows - 3 - (pending ? 1 : composerRows));
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  useEffect(() => setReplyTo(null), [state.activeKey]);
+  const replyBar = !!replyTo && !pending;
+  const paneHeight = Math.max(3, rows - 3 - (pending ? 1 : composerRows) - (replyBar ? 1 : 0));
   const sidebarWidth = Math.max(18, Math.min(32, Math.floor(columns / 3)));
   const pageSize = Math.max(1, paneHeight - 2);
 
@@ -397,7 +400,9 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
 
   const sendTextTo = async (key: string, text: string): Promise<boolean> => {
     try {
-      await client.send(key, text);
+      const quote = replyTo && replyTo.threadKey === key ? replyTo : undefined;
+      await client.send(key, text, quote);
+      if (quote) setReplyTo((r) => (r === quote ? null : r));
       setSendError(undefined);
       setScroll(0);
       return true;
@@ -499,7 +504,10 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       return;
     }
     if (focus === "input") {
-      if (key.escape) setFocus(returnFocus);
+      if (key.escape) {
+        if (replyTo) return setReplyTo(null);
+        setFocus(returnFocus);
+      }
       return;
     }
     const half = Math.max(1, Math.floor(paneHeight / 2));
@@ -516,6 +524,12 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
       if (input === "e" && selectedMsg) {
         setSelectedMsgId(selectedMsg.id);
         return setPicker({ query: "", cursor: 0 });
+      }
+      if (input === "r" && selectedMsg) {
+        if (selectedMsg.recalled) return flash("can't reply to a recalled message");
+        if (!selectedMsg.source?.cliMsgId) return flash("this message can't be replied to yet");
+        setReplyTo(selectedMsg);
+        return setFocus("input");
       }
       if (input === "w" && selectedMsg) {
         if (owners.length === 0) return flash("no reactions on this message");
@@ -673,6 +687,12 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           <ReactionPopup frame={reactionFrame} query={picker.query} cursor={picker.cursor} results={searchReactions(picker.query)} />
         ) : null}
       </Box>
+      {replyBar && replyTo ? (
+        <Text wrap="truncate-end">
+          <Text color="cyan">↳ replying to {replyTo.isSelf ? "yourself" : replyTo.senderName}: </Text>
+          <Text dimColor>{replyTo.text.replace(/\s+/g, " ")}</Text>
+        </Text>
+      ) : null}
       {pending ? (
         <Text wrap="truncate-end">
           <Text color="cyan">Send {pending.request.kind} </Text>

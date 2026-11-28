@@ -26,6 +26,7 @@ const SECTIONS: [string, [string, string][]][] = [
     "Messages",
     [
       ["j/k g/G Ctrl+d/u", "select, ends, half page"],
+      ["r", "reply (Esc in the box cancels)"],
       ["e", "react: 1-6, 0 off, search"],
       ["w", "who reacted"],
       ["d · o", "recall or delete · open"],

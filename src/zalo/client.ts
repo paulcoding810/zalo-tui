@@ -1,4 +1,4 @@
-import { CloseReason, Reactions, ThreadType, type API, type Message, type Reaction, type Undo } from "zca-js";
+import { CloseReason, Reactions, ThreadType, type API, type Message, type Reaction, type SendMessageQuote, type Undo } from "zca-js";
 import { basename } from "node:path";
 import type { AttachmentRequest } from "../attachment.ts";
 import { attachmentUrl, cleanText, messageText } from "../format.ts";
@@ -80,7 +80,28 @@ export class ZaloClient {
       text: messageText(m.data),
       mentionsMe: mentions.some((x) => x.uid === this.selfId || x.uid === "-1" || x.type === 1),
       url: attachmentUrl(m.data.content),
+      quote: this.quoteOf(m),
+      source: {
+        content: m.data.content,
+        msgType: m.data.msgType,
+        propertyExt: m.data.propertyExt,
+        uidFrom: m.isSelf ? this.selfId || String(m.data.uidFrom) : String(m.data.uidFrom),
+        msgId: String(m.data.msgId),
+        cliMsgId: String(m.data.cliMsgId ?? ""),
+        ts: String(m.data.ts),
+        ttl: Number(m.data.ttl) || 0,
+      },
     };
+  }
+
+  private quoteOf(m: Message): ChatMessage["quote"] {
+    const q = m.data.quote;
+    if (!q) return undefined;
+    const owner = String(q.ownerId ?? "");
+    const state = this.store.getState();
+    const from = owner && owner === this.selfId ? "me" : q.fromD || (owner && personName(state, owner)) || "someone";
+    const text = typeof q.msg === "string" && q.msg.trim() ? q.msg : q.attach ? "[attachment]" : "[message]";
+    return { from, text };
   }
 
   async init(): Promise<void> {
@@ -318,14 +339,17 @@ export class ZaloClient {
     }
   }
 
-  async send(key: string, text: string): Promise<void> {
+  async send(key: string, text: string, replyTo?: ChatMessage): Promise<void> {
     const { kind, id } = parseKey(key);
     const type = kind === "group" ? ThreadType.Group : ThreadType.User;
-    const result = await this.api.sendMessage({ msg: text }, id, type);
+    const quote = replyTo?.source && replyTo.source.cliMsgId ? (replyTo.source as SendMessageQuote) : undefined;
+    if (replyTo && !quote) throw new Error("this message can't be replied to yet");
+    const result = await this.api.sendMessage({ msg: text, quote }, id, type);
     const msgId = result.message?.msgId;
     if (msgId === undefined) throw new Error("Zalo did not accept the message");
+    const quoted = replyTo ? { from: replyTo.isSelf ? "me" : replyTo.senderName, text: replyTo.text } : undefined;
     this.store.update((s) =>
-      addMessages(s, [{ id: String(msgId), threadKey: key, senderName: "me", isSelf: true, ts: Date.now(), text }]),
+      addMessages(s, [{ id: String(msgId), threadKey: key, senderName: "me", isSelf: true, ts: Date.now(), text, quote: quoted }]),
     );
   }
 

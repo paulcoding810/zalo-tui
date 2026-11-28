@@ -14,6 +14,7 @@ type Line = {
   reactions?: ReactionCount[];
   dim: boolean;
   divider?: boolean;
+  quoted?: boolean;
 };
 
 type Props = {
@@ -51,14 +52,30 @@ export function buildLines(
       : labelled
         ? [{ start: 0, end: Array.from(text).length, url: m.url! }]
         : textLinkRanges(text);
+    const quoted = !!m.quote && !m.recalled;
+    if (quoted) {
+      const room = Math.max(10, width - prefixLength);
+      const full = Array.from(`↳ ${m.quote!.from}: ${m.quote!.text.replace(/\s+/g, " ")}`);
+      lines.push({
+        key: `${m.id}-q`,
+        msgId: m.id,
+        time,
+        sender,
+        isSelf: m.isSelf,
+        indent: 0,
+        segments: [{ text: full.length > room ? full.slice(0, room - 1).join("") + "…" : full.join("") }],
+        dim: false,
+        quoted: true,
+      });
+    }
     wrapWithOffsets(text, Math.max(10, width - prefixLength)).forEach((line, i) =>
       lines.push({
         key: `${m.id}-${i}`,
         msgId: m.id,
-        time: i === 0 ? time : "",
-        sender: i === 0 ? sender : "",
+        time: i === 0 && !quoted ? time : "",
+        sender: i === 0 && !quoted ? sender : "",
         isSelf: m.isSelf,
-        indent: i === 0 ? 0 : prefixLength,
+        indent: i === 0 && !quoted ? 0 : prefixLength,
         segments: linkSegments(line, ranges),
         dim: !!m.recalled,
       }),
@@ -132,7 +149,8 @@ export function MessagePane({ thread, layout, selectedId, focused, height }: Pro
                 {`${reactionIcon(r.icon)} ${r.count}  `}
               </Text>
             ))}
-            {l.segments.map((s, i) =>
+            {l.quoted ? <Text dimColor>{l.segments[0]?.text}</Text> : null}
+            {(l.quoted ? [] : l.segments).map((s, i) =>
               s.url ? (
                 <Text key={i} underline>
                   {hyperlink(s.url, s.text)}

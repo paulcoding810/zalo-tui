@@ -24,6 +24,19 @@ export type ChatMessage = {
   recalled?: boolean;
   mentionsMe?: boolean;
   url?: string;
+  quote?: { from: string; text: string };
+  source?: QuoteSource;
+};
+
+export type QuoteSource = {
+  content: unknown;
+  msgType: string;
+  propertyExt: unknown;
+  uidFrom: string;
+  msgId: string;
+  cliMsgId: string;
+  ts: string;
+  ttl: number;
 };
 
 export type ReactionEntry = { icons: Record<string, number>; cleared: number };
@@ -138,13 +151,21 @@ export function addMessages(state: State, incoming: ChatMessage[]): State {
   const touched = new Set<string>();
 
   for (const raw of incoming) {
-    const msg = { ...raw, text: cleanText(raw.text), senderName: cleanText(raw.senderName) };
+    const msg = {
+      ...raw,
+      text: cleanText(raw.text),
+      senderName: cleanText(raw.senderName),
+      quote: raw.quote ? { from: cleanText(raw.quote.from), text: cleanText(raw.quote.text) } : undefined,
+    };
     const list = touched.has(msg.threadKey) ? messages[msg.threadKey]! : [...(messages[msg.threadKey] ?? [])];
     touched.add(msg.threadKey);
     messages[msg.threadKey] = list;
     const existing = list.findIndex((m) => m.id === msg.id);
     if (existing !== -1) {
-      if (msg.cliMsgId && !list[existing]!.cliMsgId) list[existing] = { ...list[existing]!, cliMsgId: msg.cliMsgId };
+      const old = list[existing]!;
+      if ((msg.cliMsgId && !old.cliMsgId) || (msg.source && !old.source)) {
+        list[existing] = { ...old, cliMsgId: old.cliMsgId ?? msg.cliMsgId, source: old.source ?? msg.source };
+      }
       continue;
     }
     list.push(msg);
