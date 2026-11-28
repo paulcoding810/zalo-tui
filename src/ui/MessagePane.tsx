@@ -35,7 +35,7 @@ export function buildLines(
   const lines: Line[] = [];
   let dividerDone = dividerTs === null;
   for (const m of messages) {
-    if (!dividerDone && !m.isSelf && m.ts > dividerTs!) {
+    if (!dividerDone && !m.isSelf && !m.recalled && m.ts > dividerTs!) {
       dividerDone = true;
       const label = " new messages ";
       const side = Math.max(2, Math.floor((width - label.length) / 2));

@@ -133,7 +133,8 @@ function newestTs(state: State, key: string): number {
 }
 
 export function markRead(state: State, key: string, now: number = Date.now()): State {
-  const ts = Math.max(state.read.chats[key] ?? 0, newestTs(state, key), now);
+  const newest = newestTs(state, key);
+  const ts = Math.max(state.read.chats[key] ?? 0, newest || now);
   const next = { ...state, read: { ...state.read, chats: { ...state.read.chats, [key]: ts } } };
   return recount(next, [key]);
 }
@@ -164,8 +165,9 @@ export function addMessages(state: State, incoming: ChatMessage[]): State {
     const existing = list.findIndex((m) => m.id === msg.id);
     if (existing !== -1) {
       const old = list[existing]!;
+      const serverTs = old.isSelf && msg.source && !old.source && msg.ts !== old.ts;
       if ((msg.cliMsgId && !old.cliMsgId) || (msg.source && !old.source)) {
-        list[existing] = { ...old, cliMsgId: old.cliMsgId ?? msg.cliMsgId, source: old.source ?? msg.source };
+        list[existing] = { ...old, cliMsgId: old.cliMsgId ?? msg.cliMsgId, source: old.source ?? msg.source, ts: serverTs ? msg.ts : old.ts };
       }
       continue;
     }

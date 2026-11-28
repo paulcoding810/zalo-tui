@@ -16,6 +16,7 @@ import {
   sortedThreads,
   threadKey,
   applyReadState,
+  markRead,
   dividerTs,
   upsertThreads,
   type ChatMessage,
@@ -186,4 +187,18 @@ test("reaction owners list newest first with names from people, friends or nothi
     ],
   );
   assert.equal(rememberPeople(s, { u1: "Member" }), s);
+});
+
+test("read points come from server times, so a fast local clock can't hide new messages", () => {
+  let s = applyReadState(base(), { since: 0, chats: {} });
+  s = addMessages(s, [msg("1", A, 1000)]);
+  s = markRead(s, A, 999_999);
+  assert.equal(s.read.chats[A], 1000);
+  s = addMessages(s, [msg("2", A, 1500)]);
+  assert.equal(s.unread[A], 1);
+  s = addMessages(s, [msg("me", A, 999_999, { isSelf: true })]);
+  assert.equal(s.unread[A], undefined);
+  s = addMessages(s, [msg("me", A, 1600, { isSelf: true, source: { content: "", msgType: "webchat", propertyExt: undefined, uidFrom: "0", msgId: "me", cliMsgId: "c", ts: "1600", ttl: 0 } })]);
+  s = addMessages(s, [msg("3", A, 1700)]);
+  assert.equal(s.unread[A], 1);
 });
