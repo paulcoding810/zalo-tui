@@ -14,6 +14,10 @@ test("attachments get a label", () => {
     messageText({ msgType: "chat.recommended", content: { title: "Docs", href: "https://example.com" } }),
     "[link] Docs https://example.com",
   );
+  assert.equal(
+    messageText({ msgType: "chat.recommended", content: { title: "https://example.com", href: "https://example.com" } }),
+    "[link] https://example.com",
+  );
 });
 
 test("unknown types fall back to the type name", () => {

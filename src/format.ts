@@ -30,7 +30,7 @@ function rawMessageText(data: { msgType?: string; content: Content }): string {
   if (!content || typeof content !== "object") return `[${label}]`;
   const title = str(content.title);
   const href = str(content.href);
-  if (label === "link") return ["[link]", title, href].filter(Boolean).join(" ");
+  if (label === "link") return ["[link]", title === href ? "" : title, href].filter(Boolean).join(" ");
   return title ? `[${label}] ${title}` : `[${label}]`;
 }
 

@@ -17,7 +17,7 @@ import { ChatList } from "./ChatList.tsx";
 import { Composer } from "./Composer.tsx";
 import { LoginScreen } from "./LoginScreen.tsx";
 import { MessagePane, paneLayout } from "./MessagePane.tsx";
-import { HelpPane } from "./HelpPane.tsx";
+import { HELP_LINES, HelpPane } from "./HelpPane.tsx";
 import { listWindow, placePopup, popupContentAt } from "./Popup.tsx";
 import { ChoicePopup, choicePopupHeight, visibleChoices } from "./ChoicePopup.tsx";
 import { QUICK_CELL_WIDTH, QUICK_REACTIONS, REACTION_LIST_TOP, ReactionPopup, reactionLayout } from "./ReactionPopup.tsx";
@@ -170,7 +170,12 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const [picker, setPicker] = useState<{ query: string; cursor: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteCursor, setDeleteCursor] = useState(0);
-  const [showHelp, setShowHelp] = useState(false);
+  const [showHelp, setShowHelpState] = useState(false);
+  const [helpOffset, setHelpOffset] = useState(0);
+  const setShowHelp = (value: boolean) => {
+    setHelpOffset(0);
+    setShowHelpState(value);
+  };
   const [linkChoices, setLinkChoices] = useState<string[] | null>(null);
   const [linkCursor, setLinkCursor] = useState(0);
   const [ownersCursor, setOwnersCursor] = useState<number | null>(null);
@@ -428,6 +433,13 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
 
   useInput((input, key) => {
     if (showHelp) {
+      const maxOffset = Math.max(0, HELP_LINES - paneHeight);
+      const step = key.pageDown || (key.ctrl && input === "d") ? paneHeight : key.pageUp || (key.ctrl && input === "u") ? -paneHeight : 0;
+      if (input === "j" || key.downArrow || input === "k" || key.upArrow || step) {
+        const delta = step || (input === "j" || key.downArrow ? 1 : -1);
+        setHelpOffset((o) => Math.max(0, Math.min(maxOffset, o + delta)));
+        return;
+      }
       setShowHelp(false);
       return;
     }
@@ -617,7 +629,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           info={listInfo}
         />
         {showHelp ? (
-          <HelpPane width={columns - sidebarWidth} height={paneHeight} />
+          <HelpPane width={columns - sidebarWidth} height={paneHeight} offset={helpOffset} />
         ) : (
           <MessagePane
             thread={active}

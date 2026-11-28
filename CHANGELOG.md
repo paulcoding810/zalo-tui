@@ -22,6 +22,9 @@ A release is made by adding a section for the new version below and bumping `ver
 - Unread counts are no longer lost by moving through the chat list: a highlighted chat is only previewed, and it counts as read once you open it (Enter, `l`, a click, or typing). Messages that arrived while the app was closed now count as unread, and a "new messages" line marks where they start.
 - A message now shows every reaction a person adds, not only their latest one.
 - Long drafts wrap instead of being cut off, so the cursor stays visible after `Home` or `Ctrl+a`.
+- A link whose title is its URL no longer shows the URL twice.
+- Help scrolls with `j`/`k` in small terminals instead of overlapping, lists keys that were missing, and no longer mentions an `m` key in the react popup that didn't exist.
+- Shorter status bar hints that fit the terminal.
 
 ## [0.1.0] - 2026-11-24
 

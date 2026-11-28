@@ -4,73 +4,82 @@ const SECTIONS: [string, [string, string][]][] = [
   [
     "Commands (type in the message box)",
     [
-      ["/photo <path> [caption]", "send a photo (jpg, png, webp)"],
-      ["/file <path> [caption]", "send a file"],
-      ["drag a file in, Enter", "send it, after asking"],
-      ["//text", "send text that starts with /"],
+      ["/photo <path> [text]", "send a photo"],
+      ["/file <path> [text]", "send a file"],
+      ["", "paths may use ~/, quotes, \\ "],
+      ["drag file in, Enter", "send it, after asking"],
+      ["//text", "text starting with /"],
       ["/help or ?", "this help"],
     ],
   ],
   [
     "Chat list",
     [
-      ["j/k ↑↓  g/G  Ctrl+d/u", "move, top/bottom, half page"],
-      ["/  n  r", "filter, notifications, reconnect"],
-      ["m", "group alerts: every message or @mentions"],
-      ["l or Tab · Enter or i", "messages · type"],
+      ["j/k g/G Ctrl+d/u", "move, ends, half page"],
+      ["", "highlighting only previews"],
+      ["Enter/i · l/Tab", "open and type · messages"],
+      ["/ · Esc", "filter by name · clear"],
+      ["n · m · r", "notify · groups · reconnect"],
     ],
   ],
   [
     "Messages",
     [
-      ["j/k  g/G", "select message"],
-      ["e  (m for more)", "react"],
+      ["j/k g/G Ctrl+d/u", "select, ends, half page"],
+      ["e", "react: 1-6, 0 off, search"],
       ["w", "who reacted"],
-      ["d", "recall or delete"],
-      ["o", "open photo, file or link"],
-      ["h or Tab · i", "chats · type"],
+      ["d · o", "recall or delete · open"],
+      ["Enter/i · h/Esc/Tab", "type · back to chats"],
     ],
   ],
   [
     "Message box",
     [
-      ["Enter · Alt+Enter · Esc", "send · new line · back"],
-      ["←→↑↓  Ctrl+a/e", "move, start/end"],
-      ["Ctrl+w  Ctrl+u", "delete word, delete to start"],
+      ["Enter · Alt+Enter", "send · new line"],
+      ["←→↑↓ Ctrl+a/e", "move, start/end"],
+      ["Ctrl+w · Ctrl+u", "delete word · to start"],
+      ["Esc", "back (drafts are kept)"],
     ],
   ],
   [
     "Anywhere",
     [
-      ["PgUp/PgDn · wheel", "scroll messages"],
-      ["click", "open chat, select message, type"],
+      ["PgUp/PgDn · wheel", "scroll"],
+      ["click", "open chat, select, type"],
       ["Shift-drag", "select text"],
       ["Ctrl+C", "quit"],
     ],
   ],
 ];
 
-export function HelpPane({ width, height }: { width: number; height: number }) {
+type HelpLine = { title: string } | { key: string; text: string };
+
+const LINES: HelpLine[] = SECTIONS.flatMap(([title, rows]) => [{ title }, ...rows.map(([key, text]) => ({ key, text }))]);
+
+export const HELP_LINES = LINES.length;
+
+export function HelpPane({ width, height, offset }: { width: number; height: number; offset: number }) {
   const keyWidth = Math.max(...SECTIONS.flatMap(([, rows]) => rows.map(([k]) => Array.from(k).length))) + 2;
+  const start = Math.max(0, Math.min(offset, LINES.length - height));
+  const more = start + height < LINES.length;
   return (
-    <Box flexDirection="column" flexGrow={1} width={width} height={height + 2} borderStyle="round" borderColor="cyan" overflow="hidden">
+    <Box flexDirection="column" flexGrow={1} width={width} height={height + 2} borderStyle="round" borderColor="cyan">
       <Box position="absolute" marginTop={-1} marginLeft={1}>
-        <Text bold> Help · any key to close </Text>
+        <Text bold> Help · {start > 0 || more ? "j/k scroll · " : ""}any other key closes </Text>
       </Box>
-      {SECTIONS.map(([title, rows]) => (
-        <Box key={title} flexDirection="column">
-          <Text color="cyan" bold>
-            {title}
+      {LINES.slice(start, start + height).map((line, i) =>
+        "title" in line ? (
+          <Text key={i} color="cyan" bold wrap="truncate-end">
+            {line.title}
           </Text>
-          {rows.map(([k, v]) => (
-            <Text key={k} wrap="truncate-end">
-              {"  "}
-              <Text color="yellow">{k.padEnd(keyWidth)}</Text>
-              {v}
-            </Text>
-          ))}
-        </Box>
-      ))}
+        ) : (
+          <Text key={i} wrap="truncate-end">
+            {"  "}
+            <Text color="yellow">{line.key.padEnd(keyWidth)}</Text>
+            {line.text}
+          </Text>
+        ),
+      )}
     </Box>
   );
 }
