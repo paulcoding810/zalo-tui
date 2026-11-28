@@ -42,7 +42,34 @@ test("sending a reply passes the quoted message to zca-js", async () => {
   const key = threadKey("user", "7");
   const target = (client as unknown as { toChatMessage: (m: unknown) => any }).toChatMessage(raw());
   await client.send(key, "ok", target);
-  assert.deepEqual(calls[0], [{ msg: "ok", quote: target.source }, "7", ThreadType.User]);
+  assert.deepEqual(calls[0], [{ msg: "ok", quote: target.source, mentions: undefined }, "7", ThreadType.User]);
   assert.deepEqual(store.getState().messages[key]![0]!.quote, { from: "Bao", text: "yes agreed" });
   await assert.rejects(client.send(key, "x", { ...target, source: undefined }), /can't be replied/);
+});
+
+test("group messages send real mentions for picked members", async () => {
+  const calls: unknown[][] = [];
+  const api = { sendMessage: async (...args: unknown[]) => (calls.push(args), { message: { msgId: 5 }, attachment: [] }) };
+  const client = new ZaloClient(api as never, new Store());
+  await client.send(threadKey("group", "9"), "hi @Chi", undefined, [{ uid: "202", name: "Chi" }]);
+  assert.deepEqual((calls[0]![0] as { mentions: unknown }).mentions, [{ pos: 3, uid: "202", len: 4 }]);
+  await client.send(threadKey("user", "9"), "hi @Chi", undefined, [{ uid: "202", name: "Chi" }]);
+  assert.equal((calls[1]![0] as { mentions: unknown }).mentions, undefined);
+});
+
+test("group members load once, with names looked up", async () => {
+  let infoCalls = 0;
+  const api = {
+    getGroupInfo: async () => (infoCalls++, { gridInfoMap: { "9": { memberIds: [], memVerList: ["1_3", "202_0", "303_1"] } } }),
+    getGroupMembersInfo: async (ids: string[]) => ({ profiles: Object.fromEntries(ids.map((id) => [`${id}_0`, { id, displayName: `N${id}`, zaloName: "" }])) }),
+  };
+  const store = new Store();
+  store.update((s) => ({ ...s, selfId: "1" }));
+  const client = new ZaloClient(api as never, store);
+  (client as unknown as { selfId: string }).selfId = "1";
+  const key = threadKey("group", "9");
+  assert.deepEqual(await client.groupMembers(key), ["202", "303"]);
+  await client.groupMembers(key);
+  assert.equal(infoCalls, 1);
+  assert.deepEqual(store.getState().people, { "202": "N202", "303": "N303" });
 });

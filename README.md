@@ -11,6 +11,7 @@ A terminal client for Zalo personal accounts, built on [zca-js](https://github.c
 - Chat list with friends and groups, recent chats first, unread counts and a name filter.
 - Read and send messages; links are clickable and open with `o`.
 - Send photos and files (drag a file into the terminal, or `/photo` and `/file`).
+- Quote replies, @mentions in groups, and search through loaded messages.
 - Reactions (all of Zalo's built-in ones), recall, and delete for yourself.
 - Desktop notifications, respecting muted chats; groups can be limited to @mentions.
 - Keyboard first (vim-style keys), with mouse clicks and wheel scrolling.
@@ -51,7 +52,7 @@ Type `/help` or press `?` inside the app to see all keys. `zalo-tui --version` p
 | Chat list | `j`/`k` or `↑`/`↓` move · `g`/`G` top/bottom · `Ctrl+d`/`Ctrl+u` half page · `/` filter by name or message text (`↑`/`↓` move while typing, `Enter` opens at the match, `Esc` clears) · `Enter` or `i` open and type · `l` or `Tab` messages · `n` notifications · `m` group alerts: all or @mentions · `r` reconnect |
 | Messages | `j`/`k` select · `g`/`G` top/bottom · `Ctrl+d`/`Ctrl+u` half page · `/` search this chat, then `n`/`N` older/newer match · `r` reply · `e` react · `w` who reacted · `d` recall or delete · `o` open photo, file or link · `Enter` or `i` type · `h`, `Esc` or `Tab` chats |
 | React popup | `1`–`6` quick reactions (or click them) · type to search all · `↑`/`↓` `Enter` pick · `0` remove yours · `Esc` close |
-| Message box | `Enter` send · `Alt+Enter` new line · `Esc` back · arrows move · `Ctrl+a`/`Ctrl+e` or `Home`/`End` start/end · `Ctrl+w` delete word · `Ctrl+u` delete to start |
+| Message box | `Enter` send · `Alt+Enter` new line · `Esc` back · arrows move · `Ctrl+a`/`Ctrl+e` or `Home`/`End` start/end · `Ctrl+w` delete word · `Ctrl+u` delete to start · `@` in a group suggests members to mention (`↑`/`↓`, `Enter` or `Tab` picks, `Esc` dismisses) |
 | Anywhere | `PgUp`/`PgDn` or wheel scroll messages (the wheel over the chat list moves the selection) · click to open a chat, select a message or type · `Shift`-drag selects text · `Ctrl+C` quit |
 
 Commands in the message box:

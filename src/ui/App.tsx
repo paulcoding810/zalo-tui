@@ -11,7 +11,8 @@ import { reactionIcon, searchReactions } from "../reactions.ts";
 import { nextNotifyMode } from "../notify.ts";
 import { openUrl } from "../open.ts";
 import { fold, searchMessages, stepMatch } from "../search.ts";
-import { dividerTs, openThread, reactionKey, reactionOwners, sortedThreads, type ChatMessage, type Store } from "../store.ts";
+import { dividerTs, openThread, personName, reactionKey, reactionOwners, sortedThreads, type ChatMessage, type Store } from "../store.ts";
+import type { Member } from "../mentions.ts";
 import { ZaloClient } from "../zalo/client.ts";
 import { loadCredentials, loginWithQR, qrPath, restore, saveCredentials, saveSettings } from "../zalo/session.ts";
 import { ChatList } from "./ChatList.tsx";
@@ -209,6 +210,8 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
 
   const [composerRows, setComposerRows] = useState(1);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [memberIds, setMemberIds] = useState<Record<string, string[]>>({});
   const [search, setSearch] = useState<{ query: string; editing: boolean; key: string | null } | null>(null);
   useEffect(() => setReplyTo(null), [state.activeKey]);
   const replyBar = !!replyTo && !pending;
@@ -399,6 +402,31 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   };
   useEffect(() => setSearch((s) => (s && s.key !== state.activeKey ? null : s)), [state.activeKey]);
 
+  const members = useMemo((): Member[] | null => {
+    const key = state.activeKey;
+    if (!key || state.threads[key]?.kind !== "group") return null;
+    const seen = new Set<string>();
+    const out: Member[] = [];
+    const add = (uid: string) => {
+      if (!uid || uid === state.selfId || seen.has(uid)) return;
+      const name = personName(state, uid);
+      if (!name) return;
+      seen.add(uid);
+      out.push({ uid, name });
+    };
+    for (const m of [...(state.messages[key] ?? [])].reverse()) if (!m.isSelf && m.senderId) add(m.senderId);
+    for (const uid of memberIds[key] ?? []) add(uid);
+    return out;
+  }, [state.activeKey, state.messages, state.people, state.threads, memberIds]);
+  const loadMembers = () => {
+    const key = state.activeKey;
+    if (!key || state.threads[key]?.kind !== "group" || memberIds[key]) return;
+    client
+      .groupMembers(key)
+      .then((uids) => setMemberIds((m) => ({ ...m, [key]: uids })))
+      .catch(() => flash("couldn't load group members"));
+  };
+
   const react = (icon: string) => {
     const target = selectedMsg;
     setPicker(null);
@@ -421,10 +449,10 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     }
   };
 
-  const sendTextTo = async (key: string, text: string): Promise<boolean> => {
+  const sendTextTo = async (key: string, text: string, picks: Member[] = []): Promise<boolean> => {
     try {
       const quote = replyTo && replyTo.threadKey === key ? replyTo : undefined;
-      await client.send(key, text, quote);
+      await client.send(key, text, quote, picks);
       if (quote) setReplyTo((r) => (r === quote ? null : r));
       setSendError(undefined);
       setScroll(0);
@@ -522,6 +550,7 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     }
     if (key.pageUp) return scrollBy(pageSize);
     if (key.pageDown) return scrollBy(-pageSize);
+    if (focus === "input" && mentionOpen && (key.tab || key.escape)) return;
     if (key.tab) {
       setFocus(focus === "list" && state.activeKey ? "messages" : "list");
       return;
@@ -642,11 +671,11 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
     if (input === "r" && state.connection.state === "closed") client.connect();
   });
 
-  const submit = async (text: string): Promise<boolean> => {
+  const submit = async (text: string, picks: Member[] = []): Promise<boolean> => {
     const key = state.activeKey;
     if (!key) return false;
     const action = classifyInput(text, isFile);
-    if (action.kind === "text") return sendTextTo(key, action.text);
+    if (action.kind === "text") return sendTextTo(key, action.text, picks);
     if (action.kind === "help") {
       setSendError(undefined);
       setShowHelp(true);
@@ -768,6 +797,9 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
           width={columns}
           maxRows={Math.max(1, Math.min(5, rows - 8))}
           onHeight={setComposerRows}
+          members={members}
+          onMentionStart={loadMembers}
+          onSuggesting={setMentionOpen}
           onSubmit={submit}
         />
       </Box>

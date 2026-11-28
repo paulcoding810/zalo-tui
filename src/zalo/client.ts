@@ -7,6 +7,7 @@ import { metaAction, type MetaAction } from "./meta.ts";
 import { loadActivity, loadReadState, saveActivity, saveReadState } from "./session.ts";
 import { mutedUntil, notificationContent, notifySkipReason, showNotification } from "../notify.ts";
 import { debugLog } from "../debug.ts";
+import { mentionPositions, type Member } from "../mentions.ts";
 import {
   activitySnapshot,
   addMessages,
@@ -50,6 +51,7 @@ export class ZaloClient {
   private muted = new Map<string, number>();
   private lastNotified = new Map<string, number>();
   private lookedUp = new Set<string>();
+  private members = new Map<string, Promise<string[]>>();
   private selfId = "";
   private deleted = new Set<string>();
   private recalledIds = new Set<string>();
@@ -339,12 +341,42 @@ export class ZaloClient {
     }
   }
 
-  async send(key: string, text: string, replyTo?: ChatMessage): Promise<void> {
+  groupMembers(key: string): Promise<string[]> {
+    const cached = this.members.get(key);
+    if (cached) return cached;
+    const load = this.loadMembers(key);
+    this.members.set(key, load);
+    load.catch(() => this.members.delete(key));
+    return load;
+  }
+
+  private async loadMembers(key: string): Promise<string[]> {
+    const { kind, id } = parseKey(key);
+    if (kind !== "group") return [];
+    const info = (await this.api.getGroupInfo(id)).gridInfoMap[id];
+    const ids = info?.memberIds?.length ? info.memberIds : (info?.memVerList ?? []).map((v) => v.split("_")[0]!);
+    const uids = [...new Set(ids.map(String))].filter((uid) => uid && uid !== this.selfId);
+    const state = this.store.getState();
+    const missing = uids.filter((uid) => !personName(state, uid));
+    for (const batch of chunk(missing, 50)) {
+      const res = await this.api.getGroupMembersInfo(batch).catch(() => null);
+      const names: Record<string, string> = {};
+      for (const [k, p] of Object.entries(res?.profiles ?? {})) {
+        const name = p?.displayName || p?.zaloName;
+        if (name) names[(p?.id || k).split("_")[0]!] = name;
+      }
+      this.store.update((s) => rememberPeople(s, names));
+    }
+    return uids;
+  }
+
+  async send(key: string, text: string, replyTo?: ChatMessage, picks: Member[] = []): Promise<void> {
     const { kind, id } = parseKey(key);
     const type = kind === "group" ? ThreadType.Group : ThreadType.User;
     const quote = replyTo?.source && replyTo.source.cliMsgId ? (replyTo.source as SendMessageQuote) : undefined;
     if (replyTo && !quote) throw new Error("this message can't be replied to yet");
-    const result = await this.api.sendMessage({ msg: text, quote }, id, type);
+    const mentions = kind === "group" ? mentionPositions(text, picks) : [];
+    const result = await this.api.sendMessage({ msg: text, quote, mentions: mentions.length ? mentions : undefined }, id, type);
     const msgId = result.message?.msgId;
     if (msgId === undefined) throw new Error("Zalo did not accept the message");
     const quoted = replyTo ? { from: replyTo.isSelf ? "me" : replyTo.senderName, text: replyTo.text } : undefined;

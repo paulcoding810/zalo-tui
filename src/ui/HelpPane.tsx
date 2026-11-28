@@ -40,6 +40,7 @@ const SECTIONS: [string, [string, string][]][] = [
       ["Enter · Alt+Enter", "send · new line"],
       ["←→↑↓ Ctrl+a/e", "move, start/end"],
       ["Ctrl+w · Ctrl+u", "delete word · to start"],
+      ["@ in a group", "mention: ↑↓, Enter or Tab picks"],
       ["Esc", "back (drafts are kept)"],
     ],
   ],

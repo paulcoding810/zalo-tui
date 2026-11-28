@@ -1,8 +1,9 @@
 import { Box, Text, useInput, usePaste } from "ink";
 import { useEffect, useRef, useState } from "react";
+import { EVERYONE, filterMembers, mentionQuery, type Member } from "../mentions.ts";
 import { composerLines, composerWindow, cursorLine, verticalMove, wordStart } from "./composerLayout.ts";
 
-type Draft = { chars: string[]; cursor: number };
+type Draft = { chars: string[]; cursor: number; picks: Member[] };
 
 type Props = {
   draftKey: string | null;
@@ -12,12 +13,18 @@ type Props = {
   width: number;
   maxRows: number;
   onHeight: (rows: number) => void;
-  onSubmit: (text: string) => Promise<boolean>;
+  members?: Member[] | null;
+  onMentionStart?: () => void;
+  onSuggesting?: (open: boolean) => void;
+  onSubmit: (text: string, picks: Member[]) => Promise<boolean>;
 };
 
-export function Composer({ draftKey, active, enabled, error, width, maxRows, onHeight, onSubmit }: Props) {
+export function Composer({ draftKey, active, enabled, error, width, maxRows, onHeight, members, onMentionStart, onSuggesting, onSubmit }: Props) {
   const [chars, setChars] = useState<string[]>([]);
   const [cursor, setCursor] = useState(0);
+  const [picks, setPicks] = useState<Member[]>([]);
+  const [suggestion, setSuggestion] = useState(0);
+  const [dismissed, setDismissed] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
   const drafts = useRef(new Map<string, Draft>());
   const currentKey = useRef(draftKey);
@@ -25,12 +32,14 @@ export function Composer({ draftKey, active, enabled, error, width, maxRows, onH
   useEffect(() => {
     if (currentKey.current === draftKey) return;
     if (currentKey.current) {
-      if (chars.length) drafts.current.set(currentKey.current, { chars, cursor });
+      if (chars.length) drafts.current.set(currentKey.current, { chars, cursor, picks });
       else drafts.current.delete(currentKey.current);
     }
-    const next = (draftKey && drafts.current.get(draftKey)) || { chars: [], cursor: 0 };
+    const next = (draftKey && drafts.current.get(draftKey)) || { chars: [], cursor: 0, picks: [] };
     setChars(next.chars);
     setCursor(next.cursor);
+    setPicks(next.picks);
+    setDismissed(null);
     currentKey.current = draftKey;
   }, [draftKey]);
 
@@ -44,22 +53,49 @@ export function Composer({ draftKey, active, enabled, error, width, maxRows, onH
   const view = composerWindow(lines, cursor, maxRows);
   const cursorRow = cursorLine(lines, cursor);
 
+  const query = members && active ? mentionQuery(chars, cursor) : null;
+  const suggestions = query && dismissed !== query.start ? filterMembers([...members!, EVERYONE], query.query) : [];
+  const suggesting = suggestions.length > 0;
+  const chosen = Math.min(suggestion, Math.max(0, suggestions.length - 1));
+  useEffect(() => {
+    if (query) onMentionStart?.();
+  }, [query?.start]);
+  useEffect(() => {
+    setSuggestion(0);
+  }, [query?.start, query?.query]);
+  useEffect(() => onSuggesting?.(suggesting), [suggesting]);
+
+  const accept = (member: Member) => {
+    if (!query) return;
+    const add = Array.from(`@${member.name} `);
+    setChars((c) => [...c.slice(0, query.start), ...add, ...c.slice(cursor)]);
+    setCursor(query.start + add.length);
+    setPicks((p) => [...p, member]);
+  };
+
   usePaste(insert, { isActive: active && !sending });
 
   useInput(
     (input, key) => {
+      if (suggesting) {
+        if (key.upArrow) return setSuggestion(Math.max(0, chosen - 1));
+        if (key.downArrow) return setSuggestion(Math.min(suggestions.length - 1, chosen + 1));
+        if ((key.return && !key.shift && !key.meta) || key.tab) return accept(suggestions[chosen]!);
+        if (key.escape) return setDismissed(query!.start);
+      }
       if (key.return && (key.shift || key.meta)) return insert("\n");
       if (key.return) {
         const text = chars.join("").trim();
         if (!text || !enabled) return;
         const sentFrom = currentKey.current;
         setSending(true);
-        void onSubmit(text).then((ok) => {
+        void onSubmit(text, picks).then((ok) => {
           setSending(false);
           if (!ok) return;
           if (currentKey.current === sentFrom) {
             setChars([]);
             setCursor(0);
+            setPicks([]);
           } else if (sentFrom) {
             drafts.current.delete(sentFrom);
           }
@@ -99,11 +135,18 @@ export function Composer({ draftKey, active, enabled, error, width, maxRows, onH
   const status = sending ? " sending…" : error ? ` ${error}` : "";
   const placeholder = chars.length === 0 && !active;
   const visibleRows = placeholder ? 1 : view.rows;
-  const height = visibleRows + (status ? 1 : 0);
+  const height = visibleRows + (status ? 1 : 0) + suggestions.length;
   useEffect(() => onHeight(height), [height]);
 
   return (
     <Box flexDirection="column">
+      {suggestions.map((m, i) => (
+        <Text key={m.uid} wrap="truncate-end">
+          <Text color="cyan">{i === chosen ? "▶ " : "  "}</Text>
+          <Text inverse={i === chosen}>@{m.name}</Text>
+          {i === 0 ? <Text dimColor>{"  ↑↓ Enter/Tab pick · Esc"}</Text> : null}
+        </Text>
+      ))}
       {placeholder ? (
         <Text wrap="truncate-end">
           <Text color="gray">{"> "}</Text>
