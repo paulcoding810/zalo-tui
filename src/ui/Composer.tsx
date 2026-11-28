@@ -1,5 +1,6 @@
 import { Box, Text, useInput, usePaste } from "ink";
 import { useEffect, useRef, useState } from "react";
+import { composerLines, composerWindow, cursorLine, verticalMove, wordStart } from "./composerLayout.ts";
 
 type Draft = { chars: string[]; cursor: number };
 
@@ -8,10 +9,13 @@ type Props = {
   active: boolean;
   enabled: boolean;
   error?: string;
+  width: number;
+  maxRows: number;
+  onHeight: (rows: number) => void;
   onSubmit: (text: string) => Promise<boolean>;
 };
 
-export function Composer({ draftKey, active, enabled, error, onSubmit }: Props) {
+export function Composer({ draftKey, active, enabled, error, width, maxRows, onHeight, onSubmit }: Props) {
   const [chars, setChars] = useState<string[]>([]);
   const [cursor, setCursor] = useState(0);
   const [sending, setSending] = useState(false);
@@ -36,10 +40,15 @@ export function Composer({ draftKey, active, enabled, error, onSubmit }: Props) 
     setCursor((p) => p + add.length);
   };
 
+  const lines = composerLines(chars, width - 3);
+  const view = composerWindow(lines, cursor, maxRows);
+  const cursorRow = cursorLine(lines, cursor);
+
   usePaste(insert, { isActive: active && !sending });
 
   useInput(
     (input, key) => {
+      if (key.return && (key.shift || key.meta)) return insert("\n");
       if (key.return) {
         const text = chars.join("").trim();
         if (!text || !enabled) return;
@@ -65,6 +74,16 @@ export function Composer({ draftKey, active, enabled, error, onSubmit }: Props) 
         setChars((c) => c.slice(cursor));
         return setCursor(0);
       }
+      if ((key.ctrl && input === "w") || (key.meta && (key.backspace || key.delete))) {
+        const start = wordStart(chars, cursor);
+        setChars((c) => [...c.slice(0, start), ...c.slice(cursor)]);
+        return setCursor(start);
+      }
+      if (key.upArrow || key.downArrow) {
+        const next = verticalMove(lines, cursor, key.upArrow ? -1 : 1);
+        if (next !== null) setCursor(next);
+        return;
+      }
       if (key.backspace || key.delete) {
         if (cursor === 0) return;
         setChars((c) => [...c.slice(0, cursor - 1), ...c.slice(cursor)]);
@@ -77,24 +96,47 @@ export function Composer({ draftKey, active, enabled, error, onSubmit }: Props) 
     { isActive: active && !sending },
   );
 
-  const before = chars.slice(0, cursor).join("");
-  const at = chars[cursor] ?? " ";
-  const after = chars.slice(cursor + 1).join("");
+  const status = sending ? " sending…" : error ? ` ${error}` : "";
+  const placeholder = chars.length === 0 && !active;
+  const visibleRows = placeholder ? 1 : view.rows;
+  const height = visibleRows + (status ? 1 : 0);
+  useEffect(() => onHeight(height), [height]);
 
   return (
-    <Box>
-      <Text color={active ? "cyan" : "gray"}>{"> "}</Text>
-      {chars.length === 0 && !active ? (
-        <Text dimColor>{enabled ? "i or Enter to type a message" : "Open a chat to type"}</Text>
-      ) : (
-        <Text wrap="truncate-start">
-          {before}
-          {active ? <Text inverse>{at}</Text> : at}
-          {after}
+    <Box flexDirection="column">
+      {placeholder ? (
+        <Text wrap="truncate-end">
+          <Text color="gray">{"> "}</Text>
+          <Text dimColor>{enabled ? "i or Enter to type a message" : "Open a chat to type"}</Text>
         </Text>
+      ) : (
+        lines.slice(view.top, view.top + view.rows).map((line, i) => {
+          const row = view.top + i;
+          const hasCursor = active && row === cursorRow;
+          const text = chars.slice(line.start, line.end).join("");
+          const offset = cursor - line.start;
+          const at = hasCursor ? (chars[cursor] === undefined || chars[cursor] === "\n" ? " " : chars[cursor]!) : "";
+          return (
+            <Text key={row} wrap="truncate-end">
+              <Text color={active ? "cyan" : "gray"}>{row === 0 ? "> " : view.top > 0 && i === 0 ? "↑ " : "  "}</Text>
+              {hasCursor ? (
+                <>
+                  {Array.from(text).slice(0, offset).join("")}
+                  <Text inverse>{at}</Text>
+                  {Array.from(text).slice(offset + 1).join("")}
+                </>
+              ) : (
+                text
+              )}
+            </Text>
+          );
+        })
       )}
-      {sending ? <Text dimColor> sending…</Text> : null}
-      {error ? <Text color="red"> {error}</Text> : null}
+      {status ? (
+        <Text color={sending ? undefined : "red"} dimColor={sending} wrap="truncate-end">
+          {status}
+        </Text>
+      ) : null}
     </Box>
   );
 }

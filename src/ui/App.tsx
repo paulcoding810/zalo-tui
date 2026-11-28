@@ -201,7 +201,8 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
   const active = state.activeKey ? state.threads[state.activeKey] ?? null : null;
   const messages = state.activeKey ? state.messages[state.activeKey] ?? [] : [];
 
-  const paneHeight = Math.max(3, rows - 4);
+  const [composerRows, setComposerRows] = useState(1);
+  const paneHeight = Math.max(3, rows - 3 - (pending ? 1 : composerRows));
   const sidebarWidth = Math.max(18, Math.min(32, Math.floor(columns / 3)));
   const pageSize = Math.max(1, paneHeight - 2);
 
@@ -668,7 +669,16 @@ export function ChatScreen({ store, client }: { store: Store; client: ZaloClient
         </Text>
       ) : null}
       <Box display={pending ? "none" : "flex"}>
-        <Composer draftKey={state.activeKey} active={focus === "input" && !showHelp} enabled={!!active} error={sendError} onSubmit={submit} />
+        <Composer
+          draftKey={state.activeKey}
+          active={focus === "input" && !showHelp}
+          enabled={!!active}
+          error={sendError}
+          width={columns}
+          maxRows={Math.max(1, Math.min(5, rows - 8))}
+          onHeight={setComposerRows}
+          onSubmit={submit}
+        />
       </Box>
       <StatusBar connection={state.connection} selfName={state.selfName} focus={focus} notify={state.notify} notifyGroups={state.notifyGroups} toast={toast} />
     </Box>

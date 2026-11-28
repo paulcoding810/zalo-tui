@@ -10,6 +10,7 @@ A release is made by adding a section for the new version below and bumping `ver
 
 - `zalo-tui --version` (or `-v`) prints the installed version.
 - `w` on a message shows who reacted with what, newest first.
+- Multi-line messages: `Alt+Enter` adds a line, the message box grows up to five lines (the message pane shrinks to make room), and `↑`/`↓` move between lines. `Ctrl+w` deletes a word.
 
 ### Changed
 
@@ -20,6 +21,7 @@ A release is made by adding a section for the new version below and bumping `ver
 
 - Unread counts are no longer lost by moving through the chat list: a highlighted chat is only previewed, and it counts as read once you open it (Enter, `l`, a click, or typing). Messages that arrived while the app was closed now count as unread, and a "new messages" line marks where they start.
 - A message now shows every reaction a person adds, not only their latest one.
+- Long drafts wrap instead of being cut off, so the cursor stays visible after `Home` or `Ctrl+a`.
 
 ## [0.1.0] - 2026-11-24
 

@@ -34,8 +34,9 @@ const SECTIONS: [string, [string, string][]][] = [
   [
     "Message box",
     [
-      ["Enter · Esc", "send · back"],
-      ["←→  Ctrl+a/e  Ctrl+u", "move, start/end, clear"],
+      ["Enter · Alt+Enter · Esc", "send · new line · back"],
+      ["←→↑↓  Ctrl+a/e", "move, start/end"],
+      ["Ctrl+w  Ctrl+u", "delete word, delete to start"],
     ],
   ],
   [
